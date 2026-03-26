@@ -183,7 +183,7 @@ See [`docs/IIS-Setup.md`](docs/IIS-Setup.md) for the full step-by-step guide inc
 # 3. Edit C:\inetpub\ReKey\appsettings.Production.json
 ```
 
-For AD service account delegation, see [`deploy/AD-ServiceAccount-Setup.md`](deploy/AD-ServiceAccount-Setup.md).
+For AD service account setup and required permissions, see [`docs/AD-ServiceAccount-Setup.md`](docs/AD-ServiceAccount-Setup.md).
 
 ---
 

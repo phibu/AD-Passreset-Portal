@@ -298,4 +298,4 @@ Certificates must be renewed before expiry. After renewal:
 
 ---
 
-*For AD service account setup and delegation, see [`AD-ServiceAccount-Setup.md`](../deploy/AD-ServiceAccount-Setup.md).*
+*For AD service account setup and required permissions, see [`AD-ServiceAccount-Setup.md`](AD-ServiceAccount-Setup.md).*
