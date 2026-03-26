@@ -1,0 +1,6 @@
+@PassCore.Web_HostAddress = http://localhost:5216
+
+GET {{PassCore.Web_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

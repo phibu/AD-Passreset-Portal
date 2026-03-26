@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /d/Git-Home/PasscoreV2/passcore -not -path */.git* -type d)"
+    ]
+  }
+}

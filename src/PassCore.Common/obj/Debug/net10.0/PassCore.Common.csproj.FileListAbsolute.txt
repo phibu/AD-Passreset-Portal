@@ -1,0 +1,11 @@
+D:\Git-Home\PasscoreV2\src\PassCore.Common\bin\Debug\net10.0\PassCore.Common.deps.json
+D:\Git-Home\PasscoreV2\src\PassCore.Common\bin\Debug\net10.0\PassCore.Common.dll
+D:\Git-Home\PasscoreV2\src\PassCore.Common\bin\Debug\net10.0\PassCore.Common.pdb
+D:\Git-Home\PasscoreV2\src\PassCore.Common\obj\Debug\net10.0\PassCore.Common.GeneratedMSBuildEditorConfig.editorconfig
+D:\Git-Home\PasscoreV2\src\PassCore.Common\obj\Debug\net10.0\PassCore.Common.AssemblyInfoInputs.cache
+D:\Git-Home\PasscoreV2\src\PassCore.Common\obj\Debug\net10.0\PassCore.Common.AssemblyInfo.cs
+D:\Git-Home\PasscoreV2\src\PassCore.Common\obj\Debug\net10.0\PassCore.Common.csproj.CoreCompileInputs.cache
+D:\Git-Home\PasscoreV2\src\PassCore.Common\obj\Debug\net10.0\PassCore.Common.dll
+D:\Git-Home\PasscoreV2\src\PassCore.Common\obj\Debug\net10.0\refint\PassCore.Common.dll
+D:\Git-Home\PasscoreV2\src\PassCore.Common\obj\Debug\net10.0\PassCore.Common.pdb
+D:\Git-Home\PasscoreV2\src\PassCore.Common\obj\Debug\net10.0\ref\PassCore.Common.dll
