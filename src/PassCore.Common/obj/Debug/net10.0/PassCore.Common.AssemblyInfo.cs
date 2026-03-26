@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PassCore.Common")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+dd8da27aea7a40ab4eb3ae2b8a78aac49191770c")]
 [assembly: System.Reflection.AssemblyProductAttribute("PassCore.Common")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PassCore.Common")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
