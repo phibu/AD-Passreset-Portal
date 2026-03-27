@@ -62,22 +62,27 @@ dotnet publish "$repoRoot\src\PassReset.Web\PassReset.Web.csproj" `
 Write-Host "  [OK] Published to $publishOut" -ForegroundColor Green
 
 # ── Package release zip ───────────────────────────────────────────────────────
-$zipName = "PassReset-$Version.zip"
-$zipPath = Join-Path $PSScriptRoot $zipName
+$zipName    = "PassReset-$Version.zip"
+$zipPath    = Join-Path $PSScriptRoot $zipName
+$stagingDir = Join-Path $PSScriptRoot '_staging'
 
 Write-Host "`n[>>] Packaging $zipName..." -ForegroundColor Cyan
 
-if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+if (Test-Path $zipPath)    { Remove-Item $zipPath    -Force }
+if (Test-Path $stagingDir) { Remove-Item $stagingDir -Recurse -Force }
 
-# Copy the install script into the staging folder so a single Compress-Archive call
-# produces an atomic zip. The copy is removed afterwards to keep the publish folder clean.
-$installScriptDest = Join-Path $publishOut 'Install-PassReset.ps1'
-Copy-Item "$PSScriptRoot\Install-PassReset.ps1" -Destination $installScriptDest
+# Build staging layout:
+#   _staging\Install-PassReset.ps1
+#   _staging\publish\*
+$stagingPublish = Join-Path $stagingDir 'publish'
+New-Item -ItemType Directory -Path $stagingPublish | Out-Null
+Copy-Item "$PSScriptRoot\Install-PassReset.ps1" -Destination $stagingDir
+Copy-Item "$publishOut\*" -Destination $stagingPublish -Recurse
 
 try {
-    Compress-Archive -Path "$publishOut\*" -DestinationPath $zipPath -CompressionLevel Optimal
+    Compress-Archive -Path "$stagingDir\*" -DestinationPath $zipPath -CompressionLevel Optimal
 } finally {
-    Remove-Item $installScriptDest -ErrorAction SilentlyContinue
+    Remove-Item $stagingDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 $sizeMb = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)

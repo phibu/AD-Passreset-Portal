@@ -18,6 +18,7 @@ node_modules/
 # Zips are distributed exclusively via GitHub Releases — never commit binaries.
 deploy/publish/
 deploy/*.zip
+deploy/_staging/
 
 # ── Secrets — never commit ───────────────────────────────────────────────────
 appsettings.Production.json
