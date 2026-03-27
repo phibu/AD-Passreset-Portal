@@ -39,11 +39,13 @@ Record the password — it goes into `appsettings.Production.json` (Step 5).
 
 ---
 
-### Step 2 — Delegate "Reset Password" on the user OU
+### Step 2 — Delegate "Reset Password" on the user OU(s)
 
-PassReset must be able to reset passwords for users. Delegate this right on the OU (or OUs) that contain your user accounts.
+PassReset must be able to reset passwords for users. Delegate this right on every OU that contains user accounts.
 
-#### Via the ADUC delegation wizard
+> **Tip — single parent OU:** If all of your users live under one parent OU (e.g. `OU=Users,DC=…`) with sub-OUs beneath it, you can delegate once on the **parent** and let inheritance propagate to all child OUs automatically. Skip the multi-OU loop below and run the `dsacls` commands just once with the parent OU path.
+
+#### Via the ADUC delegation wizard (one OU at a time)
 
 1. Open **ADUC** → expand the domain → right-click the target OU → **Delegate Control…**
 2. Click **Add…** → type `svc-passreset` → **OK**
@@ -54,24 +56,38 @@ PassReset must be able to reset passwords for users. Delegate this right on the 
    - ✓ **Read and write `pwdLastSet`** *(required for "must change at next logon" flag)*
    - ✓ **Read and write `lockoutTime`** *(optional — for a future account-unlock feature)*
 6. Click **Next** → **Finish**
+7. Repeat for each OU that contains user accounts.
 
-#### Via PowerShell (`dsacls`)
+#### Via PowerShell (`dsacls`) — single or multiple OUs
+
+Define all OUs in one array, then apply the delegation in a single loop:
 
 ```powershell
-$ou  = "OU=Users,DC=yourdomain,DC=com"
 $sid = (Get-ADUser svc-passreset).SID.Value
 
-# Reset password
-dsacls $ou /G "${sid}:CA;Reset Password;User"
+# List every OU that contains user accounts
+$ous = @(
+    "OU=Staff,DC=yourdomain,DC=com",
+    "OU=Contractors,OU=External,DC=yourdomain,DC=com",
+    "OU=Admins,OU=IT,DC=yourdomain,DC=com"
+    # Add more OUs here as needed
+)
 
-# Read/write pwdLastSet
-dsacls $ou /G "${sid}:RPWP;pwdLastSet;User"
+foreach ($ou in $ous) {
+    Write-Host "Delegating on: $ou"
 
-# Read/write lockoutTime (optional)
-dsacls $ou /G "${sid}:RPWP;lockoutTime;User"
+    # Reset password
+    dsacls $ou /G "${sid}:CA;Reset Password;User"
+
+    # Read/write pwdLastSet (must-change flag + minimum age enforcement)
+    dsacls $ou /G "${sid}:RPWP;pwdLastSet;User"
+
+    # Read/write lockoutTime (optional — future account-unlock)
+    dsacls $ou /G "${sid}:RPWP;lockoutTime;User"
+}
 ```
 
-If your users span multiple OUs, run the commands once per OU.
+> **Single OU?** Set `$ous` to a single-element array: `$ous = @("OU=Users,DC=yourdomain,DC=com")`
 
 ---
 
@@ -102,14 +118,21 @@ Get-ADUser <test-username> `
 
 If the call succeeds and returns values, no extra delegation is needed.
 
-If your domain has restricted default read permissions (common in high-security environments), grant **Read** on the attributes above for the target OU:
+If your domain has restricted default read permissions (common in high-security environments), grant **Read** on the attributes above for each user OU. Use the same `$ous` array from Step 2:
 
 ```powershell
-$ou  = "OU=Users,DC=yourdomain,DC=com"
-$sid = (Get-ADUser svc-passreset).SID.Value
+$sid  = (Get-ADUser svc-passreset).SID.Value
+$ous  = @(
+    "OU=Staff,DC=yourdomain,DC=com",
+    "OU=Contractors,OU=External,DC=yourdomain,DC=com",
+    "OU=Admins,OU=IT,DC=yourdomain,DC=com"
+)
+$attrs = @("mail","memberOf","pwdLastSet","userAccountControl","distinguishedName")
 
-foreach ($attr in @("mail","memberOf","pwdLastSet","userAccountControl","distinguishedName")) {
-    dsacls $ou /G "${sid}:RP;${attr};User"
+foreach ($ou in $ous) {
+    foreach ($attr in $attrs) {
+        dsacls $ou /G "${sid}:RP;${attr};User"
+    }
 }
 ```
 
@@ -197,15 +220,22 @@ Test-ADServiceAccount svc-passreset
 
 ### Step 5 — Delegate permissions (same as Option A Steps 2–4)
 
-The gMSA needs the same AD permissions as a standard service account. Run the `dsacls` commands from Option A Steps 2 and 3, using the gMSA's SID:
+The gMSA needs the same AD permissions as a standard service account. Use the same multi-OU loop from Option A Step 2, substituting the gMSA SID:
 
 ```powershell
-$ou  = "OU=Users,DC=yourdomain,DC=com"
 $sid = (Get-ADServiceAccount "svc-passreset").SID.Value
 
-dsacls $ou /G "${sid}:CA;Reset Password;User"
-dsacls $ou /G "${sid}:RPWP;pwdLastSet;User"
-dsacls $ou /G "${sid}:RPWP;lockoutTime;User"
+$ous = @(
+    "OU=Staff,DC=yourdomain,DC=com",
+    "OU=Contractors,OU=External,DC=yourdomain,DC=com",
+    "OU=Admins,OU=IT,DC=yourdomain,DC=com"
+)
+
+foreach ($ou in $ous) {
+    dsacls $ou /G "${sid}:CA;Reset Password;User"
+    dsacls $ou /G "${sid}:RPWP;pwdLastSet;User"
+    dsacls $ou /G "${sid}:RPWP;lockoutTime;User"
+}
 ```
 
 ### Step 6 — Set the IIS app pool identity
