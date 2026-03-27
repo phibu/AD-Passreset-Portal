@@ -246,8 +246,8 @@ Before going live, enable the debug provider to verify IIS is serving the app co
 ## Step 9 — DNS and Firewall
 
 1. **DNS** — Create an A record (or CNAME) pointing `passreset.yourdomain.com` to the server IP.
-2. **Firewall** — Allow inbound TCP 443 from the intended user subnet.
-3. **HTTP → HTTPS redirect** — The installer removes the HTTP :80 binding when a certificate is supplied. If you need an HTTP redirect for external users, add it back manually in IIS → HTTP Redirect.
+2. **Firewall** — Allow inbound TCP 443 **and TCP 80** from the intended user subnet. Port 80 is required for the HTTP→HTTPS redirect to reach the application.
+3. **HTTP → HTTPS redirect** — The installer keeps the HTTP :80 binding by default so that ASP.NET Core's `UseHttpsRedirection()` middleware can issue a 301 redirect. To disable HTTP entirely (no redirect, HTTPS only), pass `-HttpPort 0` to the installer.
 
 ---
 
@@ -287,6 +287,20 @@ Invoke-WebRequest https://passreset.yourdomain.com/health -UseBasicParsing
 - Ensure the certificate is in **LocalMachine\My** (not CurrentUser\My).
 - Run `Get-ChildItem Cert:\LocalMachine\My` to confirm.
 - Re-run the installer with the correct thumbprint.
+
+### ERR_CONNECTION_REFUSED on HTTP
+
+The HTTP :80 binding is missing from the IIS site. This happens if the site was installed with an older version of the installer (which removed :80) or if `-HttpPort 0` was passed.
+
+Re-add the binding:
+
+```powershell
+New-WebBinding -Name "PassReset" -Protocol http -Port 80
+```
+
+Then verify `EnableHttpsRedirect: true` is set in `appsettings.Production.json` and restart the site (`iisreset` or Recycle in IIS Manager). Browsers will now receive a 301 redirect to HTTPS.
+
+To prevent this on a fresh install, re-run the installer — it now retains the HTTP :80 binding by default.
 
 ### HSTS / HTTPS redirect loop
 

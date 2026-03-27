@@ -28,6 +28,10 @@
 .PARAMETER HttpsPort
     HTTPS port to bind. Default: 443
 
+.PARAMETER HttpPort
+    HTTP port to keep bound for HTTP→HTTPS redirect. Default: 80.
+    Set to 0 to remove the HTTP binding entirely (HTTPS-only, no redirect).
+
 .PARAMETER CertThumbprint
     Thumbprint of an existing certificate in LocalMachine\My to bind.
     Leave empty to skip HTTPS binding (configure manually later).
@@ -58,6 +62,7 @@ param(
     [string] $PhysicalPath    = 'C:\inetpub\PassReset',
     [string] $PublishFolder   = '',
     [int]    $HttpsPort       = 443,
+    [int]    $HttpPort        = 80,
     [string] $CertThumbprint  = '',
     [string]       $AppPoolIdentity = '',
     [SecureString] $AppPoolPassword = $null
@@ -219,13 +224,14 @@ if ($AppPoolIdentity) {
 Write-Step "Configuring site: $SiteName"
 
 if (-not $siteExists) {
+    $httpBindPort = if ($HttpPort -gt 0) { $HttpPort } else { 80 }
     New-Website `
         -Name         $SiteName `
         -PhysicalPath $PhysicalPath `
         -ApplicationPool $AppPoolName `
-        -Port         80 `
+        -Port         $httpBindPort `
         -Force | Out-Null
-    Write-Ok "Created site $SiteName (HTTP :80 placeholder)"
+    Write-Ok "Created site $SiteName (HTTP :$httpBindPort placeholder)"
 } else {
     Set-ItemProperty "IIS:\Sites\$SiteName" physicalPath $PhysicalPath
     Set-ItemProperty "IIS:\Sites\$SiteName" applicationPool $AppPoolName
@@ -254,12 +260,22 @@ if ($CertThumbprint) {
     Write-Warn 'No certificate thumbprint supplied — HTTPS binding not configured. Add it manually or re-run with -CertThumbprint.'
 }
 
-# Remove default HTTP :80 binding if HTTPS is in place (reduces attack surface)
-if ($CertThumbprint) {
-    $httpBinding = Get-WebBinding -Name $SiteName -Protocol http -Port 80 -ErrorAction SilentlyContinue
+# HTTP binding — keep for HTTP→HTTPS redirect unless operator explicitly passes -HttpPort 0
+if ($CertThumbprint -and $HttpPort -le 0) {
+    $httpBinding = Get-WebBinding -Name $SiteName -Protocol http -ErrorAction SilentlyContinue
     if ($httpBinding) {
-        Remove-WebBinding -Name $SiteName -Protocol http -Port 80
-        Write-Ok 'Removed HTTP :80 binding (HTTPS only)'
+        Remove-WebBinding -Name $SiteName -Protocol http
+        Write-Ok 'Removed HTTP binding (HTTPS-only mode: -HttpPort 0)'
+    }
+} elseif ($CertThumbprint) {
+    # Ensure the HTTP binding exists on the configured port so ASP.NET Core
+    # UseHttpsRedirection() can receive and redirect plain-HTTP requests.
+    $httpBinding = Get-WebBinding -Name $SiteName -Protocol http -Port $HttpPort -ErrorAction SilentlyContinue
+    if (-not $httpBinding) {
+        New-WebBinding -Name $SiteName -Protocol http -Port $HttpPort
+        Write-Ok "HTTP :$HttpPort binding retained for HTTP→HTTPS redirect"
+    } else {
+        Write-Ok "HTTP :$HttpPort binding present (HTTP→HTTPS redirect active)"
     }
 }
 
