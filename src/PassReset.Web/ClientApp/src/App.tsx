@@ -12,6 +12,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import LockPersonIcon from '@mui/icons-material/LockPerson';
 
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { PasswordForm } from './components/PasswordForm';
 import { useSettings } from './hooks/useSettings';
 
@@ -23,9 +24,9 @@ function buildTheme(prefersDark: boolean) {
     palette: {
       mode: prefersDark ? 'dark' : 'light',
       primary: {
-        main:  '#0d7377',
-        dark:  '#0a5c60',
-        light: '#14a8ad',
+        main:  '#0b6366',  // WCAG AA compliant (~4.7:1 on white)
+        dark:  '#094e51',
+        light: '#0d7377',
       },
       ...(prefersDark ? {} : {
         background: {
@@ -80,6 +81,7 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      <ErrorBoundary>
       <Box
         sx={{
           minHeight: '100vh',
@@ -169,6 +171,7 @@ export default function App() {
           &copy; {new Date().getFullYear()} — Internal IT Tool
         </Typography>
       </Box>
+      </ErrorBoundary>
     </ThemeProvider>
   );
 }
