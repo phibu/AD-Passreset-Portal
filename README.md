@@ -2,7 +2,7 @@
 
 > Self-service Active Directory password change portal. Employees change their own password in a browser — no helpdesk call needed.
 
-[![GitHub release](https://img.shields.io/github/v/release/phibu/passreset)](https://github.com/phibu/passreset/releases)
+[![GitHub release](https://img.shields.io/github/v/release/phibu/AD-Passreset-Portal)](https://github.com/phibu/AD-Passreset-Portal/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <picture>
@@ -73,7 +73,7 @@ To run AD-Passreset-Portal as an Active Directory password‑change portal, you 
 
 ## Deployment and installation
 
-Download the latest release zip from [GitHub Releases](https://github.com/phibu/passreset/releases) and install AD-Passreset-Portal as an IIS‑hosted Active Directory password‑change portal on Windows Server.
+Download the latest release zip from [GitHub Releases](https://github.com/phibu/AD-Passreset-Portal/releases) and install AD-Passreset-Portal as an IIS‑hosted Active Directory password‑change portal on Windows Server.
 
 ```powershell
 # Fresh install
@@ -206,7 +206,7 @@ Known constraints and trade-offs: [`docs/Known-Limitations.md`](docs/Known-Limit
 
 ## Support
 
-For issues and feature requests, open an issue at [github.com/phibu/passreset/issues](https://github.com/phibu/passreset/issues).
+For issues and feature requests, open an issue at [github.com/phibu/AD-Passreset-Portal/issues](https://github.com/phibu/AD-Passreset-Portal/issues).
 
 ---
 

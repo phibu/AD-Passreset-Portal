@@ -32,6 +32,8 @@ This file overrides `appsettings.json` in production. Place it in the same folde
   "DefaultDomain": "yourdomain.com",
   "ClearMustChangePasswordFlag": true,
   "EnforceMinimumPasswordAge": true,
+  "FailOpenOnPwnedCheckUnavailable": false,
+  "AllowSetPasswordFallback": false,
   "UpdateLastPassword": false,
   "RestrictedAdGroups": [ "Domain Admins", "Enterprise Admins", "Schema Admins", "Administrators" ],
   "AllowedAdGroups": [],
@@ -60,6 +62,8 @@ This file overrides `appsettings.json` in production. Place it in the same folde
 | `LdapPort` | int | `636` | LDAP/LDAPS port. Default `636` (LDAPS). Use `389` for plain LDAP (not recommended). |
 | `LdapUseSsl` | bool | `true` | Enables LDAPS (LDAP over TLS). Set to `false` only when LDAPS is unavailable. |
 | `LdapUsername` | string | `""` | Service account UPN or SAM for LDAP bind. Used when `UseAutomaticContext` is `false`. |
+| `FailOpenOnPwnedCheckUnavailable` | bool | `false` | When `true`, allows password changes to proceed when the HIBP API is unreachable (breach check is skipped). When `false`, an unreachable API blocks the change. |
+| `AllowSetPasswordFallback` | bool | `false` | When `true`, falls back to the administrative `SetPassword` API on COMException. **Warning:** this may bypass AD password history enforcement. |
 | `LdapPassword` | string | `""` | Password for `LdapUsername`. Store securely — consider using environment variable substitution or a secrets manager. |
 | `NotificationEmailStrategy` | string | `"Mail"` | How the recipient email address is resolved for password-changed notifications. See table below. |
 | `NotificationEmailDomain` | string | `""` | Domain suffix used with `SamAccountNameAtDomain` strategy. Falls back to `DefaultDomain` when empty. |

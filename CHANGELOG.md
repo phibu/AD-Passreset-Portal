@@ -46,7 +46,6 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - **`fetchSettings`**: now checks `Content-Type` header before parsing JSON.
 
 ### Docs
-- Updated `CLAUDE.md` to reflect all architectural changes (async interface, new config keys, SIEM section, health endpoint section).
 - Fixed health endpoint path in `README.MD` and `IIS-Setup.md` (`/health` → `/api/health`).
 - Added Security section and Known Limitations link to `README.MD`.
 - Added new docs to project structure in `README.MD`.
@@ -86,7 +85,6 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Docs
 - `appsettings-Production.md`: added `AllowedUsernameAttributes`, `PortalLockoutThreshold`, `PortalLockoutWindow` to PasswordChangeOptions; added full `AllowedUsernameAttributes`, `ValidationRegex`, `ChangePasswordForm`, `ErrorsPasswordForm`, and `Alerts` sections to ClientSettings.
 - `IIS-Setup.md`: updated Step 6 with upgrade instructions and `-Force` flag; updated Step 7 config example with new keys.
-- Added `CLAUDE.md` — architecture and build guidance for Claude Code.
 
 ---
 
