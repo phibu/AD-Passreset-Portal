@@ -31,6 +31,20 @@ public class Recaptcha
 
     [JsonIgnore]
     public string? PrivateKey { get; set; }
+
+    /// <summary>
+    /// When true, reCAPTCHA service unavailability (network error, timeout) allows the request through.
+    /// Low reCAPTCHA scores always reject regardless of this setting.
+    /// Default: false.
+    /// </summary>
+    [JsonIgnore]
+    public bool FailOpenOnUnavailable { get; set; }
+
+    /// <summary>
+    /// Minimum reCAPTCHA v3 score (0.0–1.0) to accept as human. Default: 0.5.
+    /// </summary>
+    [JsonIgnore]
+    public float ScoreThreshold { get; set; } = 0.5f;
 }
 
 public class Alerts

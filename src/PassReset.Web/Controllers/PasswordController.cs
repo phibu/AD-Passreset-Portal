@@ -94,7 +94,7 @@ public sealed class PasswordController : ControllerBase
         var recaptchaConfig = settings.Recaptcha;
         if (recaptchaConfig?.Enabled == true && !string.IsNullOrWhiteSpace(recaptchaConfig.PrivateKey))
         {
-            if (!await ValidateRecaptchaAsync(model.Recaptcha, recaptchaConfig.PrivateKey, clientIp))
+            if (!await ValidateRecaptchaAsync(model.Recaptcha, recaptchaConfig, clientIp))
             {
                 Audit("RecaptchaFailed", model.Username, clientIp, SiemEventType.RecaptchaFailed);
                 return BadRequest(ApiResult.InvalidCaptcha());
@@ -165,31 +165,60 @@ public sealed class PasswordController : ControllerBase
     };
 
     private async Task<bool> ValidateRecaptchaAsync(
-        string token, string privateKey, string clientIp)
+        string token, Recaptcha config, string clientIp)
     {
         try
         {
             using var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["secret"]   = privateKey,
+                ["secret"]   = config.PrivateKey!,
                 ["response"] = token,
                 ["remoteip"] = clientIp,
             });
 
             var response = await _recaptchaHttp.PostAsync("recaptcha/api/siteverify", content);
 
-            if (!response.IsSuccessStatusCode) return false;
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("reCAPTCHA API returned {StatusCode} for IP {ClientIp}",
+                    response.StatusCode, clientIp);
+                if (config.FailOpenOnUnavailable)
+                {
+                    _logger.LogWarning("reCAPTCHA fail-open enabled — allowing request through for IP {ClientIp}", clientIp);
+                    return true;
+                }
+                return false;
+            }
 
             var json = await response.Content.ReadFromJsonAsync<RecaptchaResponse>();
-            // v3 returns a score 0.0–1.0; treat >= 0.5 as human.
-            // Action must match the client-side action to prevent token replay from other pages.
             return json?.Success == true
-                && json.Score >= 0.5f
+                && json.Score >= config.ScoreThreshold
                 && string.Equals(json.Action, "change_password", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "reCAPTCHA service unreachable for IP {ClientIp}", clientIp);
+            if (config.FailOpenOnUnavailable)
+            {
+                _logger.LogWarning("reCAPTCHA fail-open enabled — allowing request through for IP {ClientIp}", clientIp);
+                return true;
+            }
+            return false;
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogError(ex, "reCAPTCHA request timed out for IP {ClientIp}", clientIp);
+            if (config.FailOpenOnUnavailable)
+            {
+                _logger.LogWarning("reCAPTCHA fail-open enabled — allowing request through for IP {ClientIp}", clientIp);
+                return true;
+            }
+            return false;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "reCAPTCHA validation failed for IP {ClientIp}", clientIp);
+            // Unexpected errors (JSON parse, etc.) — never fail-open
+            _logger.LogWarning(ex, "reCAPTCHA unexpected error for IP {ClientIp}", clientIp);
             return false;
         }
     }
