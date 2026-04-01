@@ -29,13 +29,21 @@ export function PasswordStrengthMeter({ password }: Props) {
       if (zxcvbnRef.current) {
         evaluate(zxcvbnRef.current);
       } else {
-        import('zxcvbn').then(mod => {
-          if (!cancelled) {
-            const fn = mod.default as ZxcvbnFn;
-            zxcvbnRef.current = fn;
-            setLoaded(true);
-            evaluate(fn);
-          }
+        import('@zxcvbn-ts/core').then(async (coreModule) => {
+          if (cancelled) return;
+          const [common, en] = await Promise.all([
+            import('@zxcvbn-ts/language-common'),
+            import('@zxcvbn-ts/language-en'),
+          ]);
+          coreModule.zxcvbnOptions.setOptions({
+            translations: en.translations,
+            graphs: common.adjacencyGraphs,
+            dictionary: { ...common.dictionary, ...en.dictionary },
+          });
+          const fn: ZxcvbnFn = (pwd) => coreModule.zxcvbn(pwd);
+          zxcvbnRef.current = fn;
+          setLoaded(true);
+          evaluate(fn);
         }).catch(() => {/* ignore load errors */});
       }
     }, 250);

@@ -17,15 +17,16 @@
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^6.4.8",
     "@mui/material": "^6.4.8",
+    "@zxcvbn-ts/core": "^3.0.4",
+    "@zxcvbn-ts/language-common": "^3.0.4",
+    "@zxcvbn-ts/language-en": "^3.0.2",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "zxcvbn": "^4.4.2"
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
-    "@types/zxcvbn": "^4.4.4",
     "@vitejs/plugin-react": "^4.4.1",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^5.2.0",
