@@ -13,14 +13,17 @@ namespace PassReset.Web.Controllers;
 public sealed class HealthController : ControllerBase
 {
     private readonly IOptions<PasswordChangeOptions> _options;
+    private readonly ILockoutDiagnostics _lockoutDiagnostics;
     private readonly ILogger<HealthController> _logger;
 
     public HealthController(
         IOptions<PasswordChangeOptions> options,
+        ILockoutDiagnostics lockoutDiagnostics,
         ILogger<HealthController> logger)
     {
-        _options = options;
-        _logger  = logger;
+        _options             = options;
+        _lockoutDiagnostics  = lockoutDiagnostics;
+        _logger              = logger;
     }
 
     /// <summary>Returns the application health status including AD connectivity.</summary>
@@ -35,7 +38,11 @@ public sealed class HealthController : ControllerBase
         {
             status    = adStatus ? "healthy" : "degraded",
             timestamp = DateTimeOffset.UtcNow,
-            checks    = new { ad = adStatus ? "ok" : "unreachable" },
+            checks    = new
+            {
+                ad      = adStatus ? "ok" : "unreachable",
+                lockout = new { activeEntries = _lockoutDiagnostics.ActiveEntries },
+            },
         };
 
         return adStatus ? Ok(result) : StatusCode(503, result);

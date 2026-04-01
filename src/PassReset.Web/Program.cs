@@ -56,21 +56,29 @@ try
     if (webSettings.UseDebugProvider)
     {
         builder.Services.AddSingleton<DebugPasswordChangeProvider>();
-        builder.Services.AddSingleton<IPasswordChangeProvider>(sp =>
+        builder.Services.AddSingleton<LockoutPasswordChangeProvider>(sp =>
             new LockoutPasswordChangeProvider(
                 sp.GetRequiredService<DebugPasswordChangeProvider>(),
                 sp.GetRequiredService<IOptions<PasswordChangeOptions>>(),
                 sp.GetRequiredService<ILogger<LockoutPasswordChangeProvider>>()));
+        builder.Services.AddSingleton<IPasswordChangeProvider>(sp =>
+            sp.GetRequiredService<LockoutPasswordChangeProvider>());
+        builder.Services.AddSingleton<ILockoutDiagnostics>(sp =>
+            sp.GetRequiredService<LockoutPasswordChangeProvider>());
         builder.Services.AddSingleton<IEmailService, NoOpEmailService>();
     }
     else
     {
         builder.Services.AddSingleton<PasswordChangeProvider>();
-        builder.Services.AddSingleton<IPasswordChangeProvider>(sp =>
+        builder.Services.AddSingleton<LockoutPasswordChangeProvider>(sp =>
             new LockoutPasswordChangeProvider(
                 sp.GetRequiredService<PasswordChangeProvider>(),
                 sp.GetRequiredService<IOptions<PasswordChangeOptions>>(),
                 sp.GetRequiredService<ILogger<LockoutPasswordChangeProvider>>()));
+        builder.Services.AddSingleton<IPasswordChangeProvider>(sp =>
+            sp.GetRequiredService<LockoutPasswordChangeProvider>());
+        builder.Services.AddSingleton<ILockoutDiagnostics>(sp =>
+            sp.GetRequiredService<LockoutPasswordChangeProvider>());
         builder.Services.AddTransient<IEmailService, SmtpEmailService>();
 
         if (expirySettings.Enabled)
