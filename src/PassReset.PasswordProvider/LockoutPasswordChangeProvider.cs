@@ -6,6 +6,16 @@ using PassReset.Common;
 namespace PassReset.PasswordProvider;
 
 /// <summary>
+/// Exposes lockout diagnostics for health monitoring.
+/// Only the active entry count is exposed — no usernames or per-entry details.
+/// </summary>
+public interface ILockoutDiagnostics
+{
+    /// <summary>Number of active (non-expired) lockout entries.</summary>
+    int ActiveEntries { get; }
+}
+
+/// <summary>
 /// Decorator around <see cref="IPasswordChangeProvider"/> that tracks per-username
 /// credential failure counts and blocks requests before they reach Active Directory
 /// once the portal lockout threshold is reached.
@@ -36,7 +46,7 @@ namespace PassReset.PasswordProvider;
 /// are used, each maintains an independent counter, effectively multiplying the lockout
 /// threshold. A periodic timer evicts expired entries to prevent unbounded memory growth.
 /// </summary>
-public sealed class LockoutPasswordChangeProvider : IPasswordChangeProvider, IDisposable
+public sealed class LockoutPasswordChangeProvider : IPasswordChangeProvider, ILockoutDiagnostics, IDisposable
 {
     private const string CacheKeyPrefix = "portal_lockout:";
 
@@ -65,6 +75,9 @@ public sealed class LockoutPasswordChangeProvider : IPasswordChangeProvider, IDi
     }
 
     public void Dispose() => _cleanupTimer.Dispose();
+
+    /// <inheritdoc />
+    public int ActiveEntries => _counters.Count(kvp => DateTimeOffset.UtcNow < kvp.Value.Expiry);
 
     /// <inheritdoc />
     public async Task<ApiErrorItem?> PerformPasswordChangeAsync(string username, string currentPassword, string newPassword)
@@ -171,13 +184,34 @@ public sealed class LockoutPasswordChangeProvider : IPasswordChangeProvider, IDi
         var now = DateTimeOffset.UtcNow;
         var evicted = 0;
 
+        // Phase 1: Remove expired entries
         foreach (var kvp in _counters)
         {
             if (now >= kvp.Value.Expiry && _counters.TryRemove(kvp.Key, out _))
                 evicted++;
         }
 
+        // Phase 2: Safety cap — evict oldest 25% if dictionary is over-large
+        const int MaxEntries = 10_000;
+        if (_counters.Count > MaxEntries)
+        {
+            _logger.LogWarning(
+                "Lockout dictionary has {Count} entries (cap={Cap}) — evicting oldest 25%",
+                _counters.Count, MaxEntries);
+
+            var toEvict = _counters
+                .OrderBy(kvp => kvp.Value.Expiry)
+                .Take(_counters.Count / 4)
+                .Select(kvp => kvp.Key)
+                .ToList();
+
+            foreach (var key in toEvict)
+                _counters.TryRemove(key, out _);
+
+            evicted += toEvict.Count;
+        }
+
         if (evicted > 0)
-            _logger.LogDebug("Evicted {Count} expired lockout entries", evicted);
+            _logger.LogDebug("Evicted {Count} lockout entries", evicted);
     }
 }
