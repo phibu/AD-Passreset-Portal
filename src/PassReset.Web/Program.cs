@@ -53,6 +53,48 @@ try
         .GetSection(nameof(PasswordExpiryNotificationSettings))
         .Get<PasswordExpiryNotificationSettings>() ?? new PasswordExpiryNotificationSettings();
 
+    // ─── Startup configuration validation — abort on Error, warn on Warning ──
+    var smtpSettings = builder.Configuration
+        .GetSection(nameof(SmtpSettings))
+        .Get<SmtpSettings>() ?? new SmtpSettings();
+    var emailNotifSettings = builder.Configuration
+        .GetSection(nameof(EmailNotificationSettings))
+        .Get<EmailNotificationSettings>() ?? new EmailNotificationSettings();
+    var clientSettings = builder.Configuration
+        .GetSection(nameof(ClientSettings))
+        .Get<ClientSettings>() ?? new ClientSettings();
+    var passwordChangeOptions = builder.Configuration
+        .GetSection(nameof(PasswordChangeOptions))
+        .Get<PasswordChangeOptions>() ?? new PasswordChangeOptions();
+
+    // ERROR — abort startup
+    if (webSettings.UseDebugProvider && !builder.Environment.IsDevelopment())
+        throw new InvalidOperationException(
+            "WebSettings.UseDebugProvider is true but Environment is not 'Development'. " +
+            "Set UseDebugProvider to false or run in the Development environment.");
+
+    if (clientSettings.Recaptcha?.Enabled == true
+        && string.IsNullOrWhiteSpace(clientSettings.Recaptcha.PrivateKey))
+        throw new InvalidOperationException(
+            "Recaptcha.Enabled is true but Recaptcha.PrivateKey is empty. " +
+            "Provide a valid reCAPTCHA private key or disable reCAPTCHA.");
+
+    // WARNING — log and continue
+    if (emailNotifSettings.Enabled && string.IsNullOrWhiteSpace(smtpSettings.Host))
+        Log.Warning(
+            "EmailNotificationSettings.Enabled is true but SmtpSettings.Host is empty. " +
+            "Password-changed notification emails will be silently discarded.");
+
+    if (expirySettings.Enabled && string.IsNullOrWhiteSpace(smtpSettings.Host))
+        Log.Warning(
+            "PasswordExpiryNotificationSettings.Enabled is true but SmtpSettings.Host is empty. " +
+            "Expiry notification emails will be silently discarded.");
+
+    if (passwordChangeOptions.PortalLockoutThreshold >= 10)
+        Log.Warning(
+            "PortalLockoutThreshold is {Threshold} (>= 10). This is unusually high and may indicate a misconfiguration. Typical values are 3-5.",
+            passwordChangeOptions.PortalLockoutThreshold);
+
     if (webSettings.UseDebugProvider)
     {
         builder.Services.AddSingleton<DebugPasswordChangeProvider>();
