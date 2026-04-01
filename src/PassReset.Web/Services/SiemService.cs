@@ -80,7 +80,7 @@ internal sealed class SiemService : ISiemService, IDisposable
 
             // RFC 5424: <PRIVAL>VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA
             var message = $"<{priority}>1 {ts} {hostname} {syslog.AppName} - - - " +
-                          $"[PassReset@0 event=\"{eventType}\" user=\"{EscapeSd(username)}\" ip=\"{ipAddress}\"{detailPart}]";
+                          $"[PassReset@0 event=\"{eventType}\" user=\"{EscapeSd(username)}\" ip=\"{EscapeSd(ipAddress)}\"{detailPart}]";
 
             var bytes = Encoding.UTF8.GetBytes(message);
 
