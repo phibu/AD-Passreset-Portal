@@ -6,6 +6,21 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.2] — 2026-04-14
+
+Installer hardening release. No application code changes — upgrade path only.
+
+### Fixed
+- **`appsettings.Production.json` is now preserved across upgrades.** `robocopy /MIR` previously deleted the operator's live production config on every upgrade (the backup saved it, but the live site ran off the template copy until manually restored). `/XF` exclusions now protect `appsettings.Production.json` and `appsettings.Local.json`; a `logs\` directory under the deploy root is also preserved via `/XD`.
+
+### Added
+- **Downgrade detection.** `Install-PassReset.ps1` parses installed vs. incoming versions as `[version]` and warns in red when the incoming build is older than the installed one; the confirmation prompt changes to "Continue with DOWNGRADE?" and `-Force` emits a warning rather than silent acceptance.
+- **Backup retention.** The installer now keeps the 3 most recent `*_backup_*` folders and prunes older ones automatically to prevent unbounded disk use on servers with frequent upgrades.
+- **Auto-rollback on startup failure.** `Start-WebAppPool` / `Start-Website` are wrapped in try/catch with a 3-second settle delay and explicit state verification. If the worker fails to start after an upgrade, the installer mirrors the backup back and restarts the site; if rollback itself fails, it aborts with manual-recovery instructions.
+- **Config schema drift warning.** After a successful upgrade, the installer diffs the key paths in `appsettings.Production.template.json` against the live `appsettings.Production.json` and lists any new template keys the operator should add manually. No auto-merge — too risky with nested or array values.
+
+---
+
 ## [1.2.1] — 2026-04-14
 
 Dependency and security maintenance release. No behavior or configuration changes.
