@@ -28,7 +28,10 @@
   2. A user who retries a password change within the domain `minPwdAge` window sees a dedicated "password changed too recently" message (not "Unexpected Error"), and a matching SIEM event is emitted
   3. Running `Install-PassReset.ps1` as an upgrade preserves the existing IIS AppPool identity (custom service account is not reset to `ApplicationPoolIdentity`)
   4. v1.2.3 tag produces a released zip via `release.yml` with `CHANGELOG.md`, `UPGRADING.md`, and `docs/appsettings-Production.md` updated
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 01-01-PLAN.md — BUG-001 SMTP internal-CA trust via thumbprint allowlist
+- [ ] 01-02-PLAN.md — BUG-002 Map E_ACCESSDENIED to PasswordTooRecentlyChanged
+- [ ] 01-03-PLAN.md — BUG-003 Preserve IIS AppPool identity on upgrade
 
 ### Phase 2: v1.3 Test Foundation
 **Goal**: Automated test suites exist for backend and frontend, wired into CI as blocking gates
