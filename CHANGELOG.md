@@ -8,6 +8,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [1.2.3] — 2026-04-14
+
+Bug-fix release. Three operator-visible fixes — SMTP with internal CAs, clearer UX when AD blocks a too-recent password change, and installer preservation of the IIS AppPool identity on upgrade.
+
 ### Fixed
 - **SMTP**: Internal-CA-issued relay certificates can now be trusted via an opt-in
   `SmtpSettings.TrustedCertificateThumbprints` allowlist (SHA-1 or SHA-256). No silent
