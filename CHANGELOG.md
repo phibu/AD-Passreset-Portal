@@ -19,6 +19,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
   back to `ApplicationPoolIdentity`. Fresh-install default and explicit
   `-AppPoolIdentity` override behaviour are unchanged. See `UPGRADING.md`.
   (BUG-003)
+- **Error handling**: Password changes rejected by the domain's `minPwdAge`
+  (AD HRESULT `0x80070005`) now surface as a dedicated
+  `ApiErrorCode.PasswordTooRecentlyChanged` with a localized user message
+  instead of a generic "Unexpected Error". The mapping is narrow — genuine
+  access-denied cases from missing service-account rights are logged with
+  a remediation hint rather than misclassified. Alert copy configurable
+  via `ClientSettings.Alerts.ErrorPasswordTooRecentlyChanged`. (BUG-002)
 
 ---
 
