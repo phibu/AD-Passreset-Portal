@@ -52,6 +52,30 @@ internal sealed class SmtpEmailService : IEmailService
             {
                 using var client = new SmtpClient();
 
+                // NEVER return true unconditionally — bypass must flow through CertificateTrust.IsTrusted + TrustedCertificateThumbprints allowlist.
+                client.ServerCertificateValidationCallback = (sender, cert, chain, errors) =>
+                {
+                    var trusted = CertificateTrust.IsTrusted(cert, chain, errors,
+                        _settings.TrustedCertificateThumbprints);
+                    if (!trusted)
+                    {
+                        _logger.LogError(
+                            "SMTP certificate validation failed: errors={Errors} subject={Subject} thumbprint={Thumbprint}",
+                            errors,
+                            cert?.Subject,
+                            (cert as System.Security.Cryptography.X509Certificates.X509Certificate2)?.Thumbprint);
+                    }
+                    else if (errors != System.Net.Security.SslPolicyErrors.None)
+                    {
+                        _logger.LogWarning(
+                            "SMTP certificate accepted via thumbprint allowlist despite chain errors: errors={Errors} subject={Subject} thumbprint={Thumbprint}",
+                            errors,
+                            cert?.Subject,
+                            (cert as System.Security.Cryptography.X509Certificates.X509Certificate2)?.Thumbprint);
+                    }
+                    return trusted;
+                };
+
                 var secureOption = _settings.Port == 465
                     ? SecureSocketOptions.SslOnConnect
                     : SecureSocketOptions.StartTls;

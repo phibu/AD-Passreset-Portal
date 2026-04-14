@@ -26,4 +26,12 @@ public class SmtpSettings
 
     /// <summary>Display name shown in outbound emails.</summary>
     public string FromName { get; set; } = "PassReset Self-Service";
+
+    /// <summary>
+    /// Optional SHA-1 or SHA-256 thumbprints (hex, case-insensitive, spaces tolerated) of SMTP server certificates
+    /// explicitly trusted even when the chain cannot be validated against the system store.
+    /// Use this for internal-CA relays where installing the root into LocalMachine\Root is not feasible.
+    /// Default (empty/null): rely solely on the OS trust store.
+    /// </summary>
+    public string[]? TrustedCertificateThumbprints { get; set; }
 }

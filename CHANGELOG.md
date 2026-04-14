@@ -6,6 +6,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **SMTP**: Internal-CA-issued relay certificates can now be trusted via an opt-in
+  `SmtpSettings.TrustedCertificateThumbprints` allowlist (SHA-1 or SHA-256). No silent
+  bypass — entries must be explicitly configured. See `docs/appsettings-Production.md`.
+  (BUG-001)
+
+---
+
 ## [1.2.2] — 2026-04-14
 
 Installer hardening release. No application code changes — upgrade path only.

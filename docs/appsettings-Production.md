@@ -136,7 +136,8 @@ If you change `path`, ensure the app pool identity has `Modify` rights on the pa
   "Username": "",
   "Password": "",
   "FromAddress": "passreset@yourdomain.com",
-  "FromName": "PassReset Self-Service"
+  "FromName": "PassReset Self-Service",
+  "TrustedCertificateThumbprints": []
 }
 ```
 
@@ -149,6 +150,7 @@ If you change `path`, ensure the app pool identity has `Modify` rights on the pa
 | `Password` | string | SMTP authentication password. |
 | `FromAddress` | string | Sender email address shown in notifications. |
 | `FromName` | string | Sender display name shown in notifications. |
+| `TrustedCertificateThumbprints` | string[] (optional) | Explicit SHA-1 (40 hex) or SHA-256 (64 hex) thumbprints of SMTP server certificates to trust when OS chain validation fails. Use only when installing the internal CA root into `LocalMachine\Root` is not feasible. Spaces and colons are tolerated; comparison is case-insensitive. Validation failures are logged with thumbprint + subject (never the full cert). Default: `[]` — system trust store only. There is no global "trust all" option by design. |
 
 ---
 
