@@ -10,6 +10,15 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # Hold back packages currently publishing pre-release (beta/next) versions
+    # at higher semver than their stable line. Revisit each when stable ships.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=6.0.0-0"]
+      - dependency-name: "@mui/material"
+        versions: [">=7.0.0-0"]
+      - dependency-name: "@mui/icons-material"
+        versions: [">=7.0.0-0"]
 
   - package-ecosystem: "nuget"
     directory: "/src"
