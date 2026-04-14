@@ -54,6 +54,7 @@ function errorMessage(code: number, alerts: ClientSettings['alerts']): string {
     case ApiErrorCode.PortalLockout:            return a.errorPortalLockout            ?? 'Too many failed attempts. Please wait before trying again.';
     // ApproachingLockout uses the configured warning string as both the general error and warning banner.
     case ApiErrorCode.ApproachingLockout:       return a.errorApproachingLockout       ?? 'Incorrect password. One more failed attempt will temporarily lock your portal access.';
+    case ApiErrorCode.PasswordTooRecentlyChanged: return a.errorPasswordTooRecentlyChanged ?? 'Your password was changed too recently. Please wait before trying again.';
     default:                                    return 'An unexpected error occurred. Please contact IT Support.';
   }
 }

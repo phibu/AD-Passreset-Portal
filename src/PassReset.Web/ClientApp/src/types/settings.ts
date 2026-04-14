@@ -50,6 +50,7 @@ export interface Alerts {
   errorPwnedPasswordCheckFailed?: string;
   errorPortalLockout?: string;
   errorApproachingLockout?: string;
+  errorPasswordTooRecentlyChanged?: string;
 }
 
 export interface ClientSettings {
@@ -108,4 +109,5 @@ export const ApiErrorCode = {
   PwnedPasswordCheckFailed: 16,
   PortalLockout: 17,
   ApproachingLockout: 18,
+  PasswordTooRecentlyChanged: 19,
 } as const;
