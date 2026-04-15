@@ -2,8 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PassReset.Common;
@@ -171,22 +172,32 @@ public sealed class PasswordLogRedactionTests
                     ["ClientSettings:Recaptcha:Enabled"] = "false",
                     ["ClientSettings:MinimumDistance"] = "0",
                     ["EmailNotificationSettings:Enabled"] = "false",
-                    // Disable the expiry background service + AD-dependent paths.
                     ["PasswordExpiryNotificationSettings:Enabled"] = "false",
                 });
             });
-        }
 
-        protected override IHost CreateHost(IHostBuilder builder)
-        {
-            // Swap the Serilog pipeline to one that writes every event to the capture sink.
-            // Must be on IHostBuilder (not IWebHostBuilder) because UseSerilog is defined there.
-            builder.UseSerilog((_, lc) => lc
+            // Production Program.cs wires Serilog via builder.Host.UseSerilog(...), which
+            // registers Serilog as the sole ILoggerProvider backed by Log.Logger and
+            // bypasses the standard ILoggerFactory provider chain — so AddProvider(...) on
+            // the services logging builder is ignored. The reliable override is to call
+            // UseSerilog a second time on IWebHostBuilder with our capture-sink logger;
+            // the last registration wins.
+            var seri = new LoggerConfiguration()
                 .MinimumLevel.Verbose()
                 .Enrich.FromLogContext()
-                .WriteTo.Sink(Sink));
+                .WriteTo.Sink(Sink)
+                .CreateLogger();
 
-            return base.CreateHost(builder);
+            builder.ConfigureServices(services =>
+            {
+                // UseSerilog registers its own ILoggerFactory via services. Replace all
+                // existing logging providers with a single Serilog provider backed by our
+                // capture sink — this wins over any earlier UseSerilog registration
+                // because it's registered last in the service collection.
+                services.AddSingleton<Serilog.ILogger>(seri);
+                services.AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(
+                    new SerilogLoggerFactory(seri, dispose: true));
+            });
         }
     }
 }
