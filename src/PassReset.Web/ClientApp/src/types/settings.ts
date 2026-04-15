@@ -81,6 +81,7 @@ export interface ClientSettings {
   alerts?: Alerts;
   branding?: BrandingSettings;
   showAdPasswordPolicy?: boolean;
+  clipboardClearSeconds?: number;
 }
 
 export interface PolicyResponse {

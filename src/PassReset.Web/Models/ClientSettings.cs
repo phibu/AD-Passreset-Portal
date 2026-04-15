@@ -29,6 +29,11 @@ public class ClientSettings
     /// Defaults to false to preserve v1.2.3 behavior.
     /// </summary>
     public bool ShowAdPasswordPolicy { get; set; } = false;
+
+    /// <summary>
+    /// Seconds after generator copy before clipboard is auto-cleared (only if content still matches). 0 disables. Default 30.
+    /// </summary>
+    public int ClipboardClearSeconds { get; set; } = 30;
 }
 
 public sealed class BrandingSettings

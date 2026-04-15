@@ -386,6 +386,24 @@ The installer never removes or overwrites this directory on upgrade.
 
 The helpdesk block is hidden when both `HelpdeskUrl` and `HelpdeskEmail` are absent.
 
+### Clipboard Clearing (FEAT-003)
+
+When the built-in password generator writes a generated password to the clipboard, PassReset schedules an automatic clipboard wipe after a configurable delay. The clear fires **only if the clipboard content still matches the generated password** — so it never clobbers anything the user copied between generation and clear.
+
+```json
+"ClientSettings": {
+  "ClipboardClearSeconds": 30
+}
+```
+
+| Key | Description |
+| --- | --- |
+| `ClipboardClearSeconds` | Seconds after copy before the clipboard is auto-cleared. Default `30`. Set to `0` to disable the feature entirely (no timer starts and no clipboard read/write occurs). |
+
+**Browser permission prompt:** The readback-guard uses `navigator.clipboard.readText()`. Chromium-based browsers permit this silently from an active tab; Firefox and Safari prompt the user the first time. This prompt is expected and intentional — denying it simply means the clear becomes a silent no-op, which is safe. If the Clipboard API is unavailable (insecure context, older browsers), the helper no-ops silently.
+
+**Regeneration:** Clicking the generate button again cancels any pending clear and starts a fresh countdown against the new password.
+
 ---
 
 ## SiemSettings
