@@ -8,7 +8,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [1.3.0] — 2026-04-15
+
+Feature release adding four opt-in UX improvements plus the automated test foundation. All new settings default off / fail-closed, so the v1.2.3 behavior is preserved when operators omit the new config blocks.
+
 ### Added
+- **Operator branding** (FEAT-001): `BrandingSettings` with 8 nullable fields (company name, portal name, helpdesk URL/email, usage text, logo, favicon, asset root). New `/brand/*` static-file route served from `%ProgramData%\PassReset\brand\` via `PhysicalFileProvider` (`ServeUnknownFileTypes=false`). Upgrade-safe installer provisioning. `BrandHeader` component with icon fallback, runtime favicon injection, helpdesk block, usage text override, footer company-name override.
+- **AD password policy panel** (FEAT-002): `PasswordPolicy` record in `PassReset.Common`, RootDSE-based query for `minPwdLength` / `pwdProperties` / `pwdHistoryLength` / `minPwdAge` / `maxPwdAge`, `PasswordPolicyCache` wrapping `IMemoryCache` (1h success / 60s failure TTL keyed by domain DN), new `GET /api/password/policy` endpoint (200 or 404 when disabled/unavailable), `AdPasswordPolicyPanel` + `usePolicy()` hook. Hidden unless `ShowAdPasswordPolicy: true`, fails closed on null.
+- **Clipboard auto-clear** (FEAT-003): `ClipboardClearSeconds` setting (default 30, `0` disables). `scheduleClipboardClear` helper with readback guard — clipboard is only cleared if it still contains the generated password. `ClipboardCountdown` chip with warning color at ≤5s and a 2s "cleared" confirmation. Regenerating cancels the previous timer; submit also cancels. Silent no-op when `navigator.clipboard` is unavailable.
+- **HIBP pre-check on blur** (FEAT-004): Client-side SHA-1 via WebCrypto; only the 5-char hex prefix leaves the browser (k-anonymity). New `POST /api/password/pwned-check` endpoint proxies the HIBP range API and returns `{ suffixes, unavailable }`; client matches the full-hash suffix locally. New rate-limit policy `pwned-check-window` (20 req / 5 min per IP) with SIEM event on rejection. `AbortController` cancels in-flight requests. Server default remains fail-closed (`FailOpenOnPwnedCheckUnavailable: false`); endpoint is additive with no breaking changes to existing routes.
 - Automated test foundation: xUnit v3 backend suite (LockoutPasswordChangeProvider,
   PwnedPasswordChecker, ApiErrorCode mapping incl PasswordTooRecentlyChanged,
   SiemSyslogFormatter, Levenshtein, ChangePasswordModel validation, and PasswordController
@@ -23,9 +33,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - `PwnedPasswordChecker` converted from internal static to an instance class with
-  injected `HttpClient` (DI) for testability. No behavior change. (QA-001)
+  injected `HttpClient` (DI) for testability, and now implements `IPwnedPasswordChecker` so the new pre-check endpoint can share the same range-fetch path. No behavior change to the existing in-flow breach check. (QA-001, FEAT-004)
 - Extracted `SiemSyslogFormatter` (pure static helper) from `SiemService` so RFC 5424
   packet construction is testable without sockets. No behavior change. (QA-001)
+
+### Security
+- Added top-level `permissions: contents: read` to `release.yml` to scope the `GITHUB_TOKEN` used by the called `tests.yml` workflow (CodeQL `actions/missing-workflow-permissions`). The release job keeps its job-level `contents: write` override.
+- `PwnedPasswordChecker.FetchRangeAsync` now guards its input with a compiled `^[0-9A-Fa-f]{5}$` regex and omits the user-supplied prefix from exception log entries, eliminating the `cs/log-forging` taint path at the sink.
 
 ---
 
