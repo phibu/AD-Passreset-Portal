@@ -222,3 +222,7 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+// Marker type to allow WebApplicationFactory<Program> in test projects.
+// Top-level programs generate an internal Program class; this makes it public.
+public partial class Program { }

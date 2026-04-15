@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PassReset.PasswordProvider"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PassReset.Web", "PassReset.Web\PassReset.Web.csproj", "{EC8386B9-D074-4991-A9A5-5A861F290916}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PassReset.Tests", "PassReset.Tests\PassReset.Tests.csproj", "{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{EC8386B9-D074-4991-A9A5-5A861F290916}.Release|x64.Build.0 = Release|Any CPU
 		{EC8386B9-D074-4991-A9A5-5A861F290916}.Release|x86.ActiveCfg = Release|Any CPU
 		{EC8386B9-D074-4991-A9A5-5A861F290916}.Release|x86.Build.0 = Release|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Debug|x64.Build.0 = Debug|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Debug|x86.Build.0 = Debug|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Release|Any CPU.Build.0 = Release|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Release|x64.ActiveCfg = Release|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Release|x64.Build.0 = Release|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Release|x86.ActiveCfg = Release|Any CPU
+		{80AF91FE-E96D-4EF6-BE37-9FB2D5A72745}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
