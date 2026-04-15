@@ -112,6 +112,10 @@ public sealed class LockoutPasswordChangeProvider : IPasswordChangeProvider, ILo
             {
                 var newCount = IncrementCounter(key, now);
 
+                _logger.LogDebug(
+                    "lockout counter {Count}/{Threshold} for {Username}",
+                    newCount, threshold, username);
+
                 _logger.LogWarning(
                     "Portal failure counter for {Username}: {Count}/{Threshold}",
                     username, newCount, threshold);
@@ -187,6 +191,8 @@ public sealed class LockoutPasswordChangeProvider : IPasswordChangeProvider, ILo
     {
         var now = DateTimeOffset.UtcNow;
         var evicted = 0;
+
+        _logger.LogDebug("lockout-eviction: sweep-start active={Active}", _counters.Count);
 
         // Phase 1: Remove expired entries
         foreach (var kvp in _counters)
