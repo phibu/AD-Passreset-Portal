@@ -152,6 +152,46 @@ public sealed class PasswordLogRedactionTests
     }
 
     /// <summary>
+    /// Directly exercises <see cref="ExceptionChainLogger.LogExceptionChain"/> with a
+    /// synthesised inner-exception chain whose <see cref="Exception.Message"/> contains
+    /// both sentinels. Asserts the sentinels DO reach the structured
+    /// <c>ExceptionChain</c> property — proving the chain walker faithfully captures
+    /// AD-surfaced error messages.
+    ///
+    /// <para>
+    /// This documents an accepted-risk leakage channel: AD-supplied exception messages
+    /// (e.g. <c>DirectoryServicesCOMException.Message</c>,
+    /// <c>PasswordException.Message</c>) are the ONLY path through which provider-side
+    /// log events could surface password-shaped text, and only if AD itself echoes the
+    /// password back in an error (historically rare). Redaction of AD-message
+    /// passthrough is out of scope for phase 07; any future redaction layer must hook
+    /// <see cref="ExceptionChainLogger"/> rather than the call sites.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void ExceptionChainLogger_CapturesInnerExceptionMessages_AcceptedRisk()
+    {
+        var (sink, seri) = BuildSink();
+        using var factory = new SerilogLoggerFactory(seri, dispose: true);
+        var logger = factory.CreateLogger("ExceptionChainLoggerTest");
+
+        // Build a 3-level inner chain whose messages carry both sentinels. This mimics
+        // the worst-case where AD surfaces password-shaped text in an error string.
+        var inner  = new InvalidOperationException($"inner-leak {CurrentSentinel}");
+        var middle = new ApplicationException($"middle-leak {NewSentinel}", inner);
+        var top    = new InvalidOperationException("top-level COM-ish failure", middle);
+
+        ExceptionChainLogger.LogExceptionChain(logger, top,
+            "ChangePassword failed (HRESULT={HResult})", unchecked((int)0x80070056));
+
+        // Positive control: the chain walker MUST faithfully capture AD-supplied
+        // message text — this is the documented accepted-risk channel.
+        var allProps = string.Join("\n", sink.AllPropertyValues());
+        Assert.Contains(CurrentSentinel, allProps);
+        Assert.Contains(NewSentinel, allProps);
+    }
+
+    /// <summary>
     /// WebApplicationFactory subclass that replaces the Serilog pipeline with a
     /// captured <see cref="ListLogEventSink"/> and forces the in-process debug
     /// provider so no AD connection is attempted.
