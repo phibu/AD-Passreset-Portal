@@ -44,7 +44,12 @@
   2. `npm test` (Vitest + RTL) runs in `ClientApp/` and covers components, hooks, and utilities (levenshtein, password generator)
   3. CI workflow fails the build when any test fails; coverage thresholds are declared and enforced
   4. Release workflow (`release.yml`) blocks tag-triggered publishes on test failure
-**Plans**: TBD
+**Plans**: 5 plans
+- [x] 02-01-PLAN.md — Backend test project scaffolding (xUnit v3, coverlet.msbuild, Program.cs partial)
+- [ ] 02-02-PLAN.md — Backend test suite + PwnedPasswordChecker/SiemSyslogFormatter refactors + 55/45 thresholds
+- [ ] 02-03-PLAN.md — Frontend Vitest + RTL + jsdom infrastructure with 50/40 thresholds
+- [ ] 02-04-PLAN.md — Frontend test suites (components, hook, utilities) meeting coverage thresholds
+- [ ] 02-05-PLAN.md — CI gate wiring (tests.yml, release.yml needs: tests, docs + CHANGELOG)
 
 ### Phase 3: v1.3 UX Features
 **Goal**: Operators can brand the portal and users get clearer guidance and safer password UX

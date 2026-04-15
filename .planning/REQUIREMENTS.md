@@ -28,7 +28,7 @@
 - [ ] **FEAT-004**: On new-password field blur, the UI displays a HaveIBeenPwned breach status indicator (safe / breached + count) using the existing `PwnedPasswordChecker` k-anonymity API. Debounced. Honors `FailOpenOnPwnedCheckUnavailable`. Plaintext password never leaves the client.
 
 ### Quality
-- [ ] **QA-001**: Automated test foundation in place — xUnit (backend) for provider logic, error mapping, SIEM, lockout decorator; Vitest + React Testing Library (frontend) for components, hooks, utilities. `dotnet test` and `npm test` run in CI. Coverage thresholds defined. Release workflow blocks on test failures.
+- [x] **QA-001**: Automated test foundation in place — xUnit (backend) for provider logic, error mapping, SIEM, lockout decorator; Vitest + React Testing Library (frontend) for components, hooks, utilities. `dotnet test` and `npm test` run in CI. Coverage thresholds defined. Release workflow blocks on test failures.
 
 ---
 
