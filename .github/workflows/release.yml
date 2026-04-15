@@ -6,7 +6,11 @@ on:
       - 'v*'
 
 jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   release:
+    needs: tests
     runs-on: windows-latest
     permissions:
       contents: write

@@ -1,0 +1,56 @@
+name: Tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5.2.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6.3.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/PassReset.Web/ClientApp/package-lock.json
+
+      - name: Restore .NET dependencies
+        run: dotnet restore src/PassReset.sln
+
+      - name: Backend tests with coverage (coverlet.msbuild)
+        run: dotnet test src/PassReset.sln --configuration Release --no-restore -p:CollectCoverage=true
+
+      - name: Install npm dependencies
+        working-directory: src/PassReset.Web/ClientApp
+        run: npm ci
+
+      - name: Frontend tests with coverage
+        working-directory: src/PassReset.Web/ClientApp
+        run: npm run test:coverage
+
+      - name: Upload backend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: src/PassReset.Tests/TestResults/coverage.cobertura.xml
+          retention-days: 30
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: src/PassReset.Web/ClientApp/coverage/
+          retention-days: 30

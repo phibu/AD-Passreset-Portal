@@ -41,3 +41,7 @@ jobs:
       - name: Build frontend
         working-directory: src/PassReset.Web/ClientApp
         run: npm run build
+
+  tests:
+    needs: build
+    uses: ./.github/workflows/tests.yml
