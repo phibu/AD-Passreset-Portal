@@ -85,7 +85,12 @@ describe('PasswordForm', () => {
     await user.click(screen.getByRole('button', { name: /change password/i }));
 
     expect(await screen.findByText(/passwords do not match/i)).toBeInTheDocument();
-    expect(fetchFn).not.toHaveBeenCalled();
+    // The new-password blur legitimately triggers the HIBP pre-check (FEAT-004);
+    // assert only that the password-change submit endpoint was never called.
+    const submitCalls = fetchFn.mock.calls.filter(
+      ([url]) => typeof url === 'string' && url === '/api/password',
+    );
+    expect(submitCalls).toHaveLength(0);
   });
 
   it('calls onSuccess when server returns empty errors array', async () => {
