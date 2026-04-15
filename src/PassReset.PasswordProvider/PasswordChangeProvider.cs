@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Diagnostics;
 using System.DirectoryServices;
 using System.DirectoryServices.AccountManagement;
 using System.DirectoryServices.ActiveDirectory;
@@ -33,16 +34,44 @@ public sealed class PasswordChangeProvider : IPasswordChangeProvider
     /// <inheritdoc />
     public async Task<ApiErrorItem?> PerformPasswordChangeAsync(string username, string currentPassword, string newPassword)
     {
+        using var flowScope = _logger.BeginScope(new { Step = "password-change-flow" });
+
         try
         {
             using var principalContext = AcquirePrincipalContext();
-            var userPrincipal = FindUser(principalContext, username);
+
+            // ─ Step: user-lookup ────────────────────────────────────────────────
+            UserPrincipal? userPrincipal;
+            using (_logger.BeginScope(new { Step = "user-lookup" }))
+            {
+                var lookupSw = Stopwatch.StartNew();
+                _logger.LogDebug("user-lookup: start");
+                try
+                {
+                    userPrincipal = FindUser(principalContext, username);
+                }
+                finally
+                {
+                    _logger.LogDebug("user-lookup: complete duration={ElapsedMs}", lookupSw.ElapsedMilliseconds);
+                }
+            }
 
             if (userPrincipal == null)
             {
                 _logger.LogWarning("User principal ({Username}) not found", username);
                 return new ApiErrorItem(ApiErrorCode.UserNotFound);
             }
+
+            // ─ AD-context scope — only opened once the principal is resolved (ConnectedServer is null pre-bind).
+            //   Properties flow into every log event below this point via Serilog scope inheritance.
+            using var adContext = _logger.BeginScope(new Dictionary<string, object>
+            {
+                ["Domain"] = _options.DefaultDomain ?? "unknown",
+                ["DomainController"] = principalContext.ConnectedServer ?? "unknown",
+                ["IdentityType"] = _idType.ToString(),
+                ["UserCannotChangePassword"] = userPrincipal.UserCannotChangePassword,
+                ["LastPasswordSetUtc"] = userPrincipal.LastPasswordSet?.ToUniversalTime().ToString("o") ?? "null",
+            });
 
             // Enforce AD minimum password length before touching AD
             var minPwdLength = AcquireDomainPasswordLength();
@@ -103,8 +132,35 @@ public sealed class PasswordChangeProvider : IPasswordChangeProvider
                 return new ApiErrorItem(ApiErrorCode.InvalidCredentials);
             }
 
-            ChangePasswordInternal(currentPassword, newPassword, userPrincipal);
-            userPrincipal.Save();
+            // ─ Step: change-password-internal ────────────────────────────────────
+            using (_logger.BeginScope(new { Step = "change-password-internal" }))
+            {
+                var cpiSw = Stopwatch.StartNew();
+                _logger.LogDebug("change-password-internal: start");
+                try
+                {
+                    ChangePasswordInternal(currentPassword, newPassword, userPrincipal);
+                }
+                finally
+                {
+                    _logger.LogDebug("change-password-internal: complete duration={ElapsedMs}", cpiSw.ElapsedMilliseconds);
+                }
+            }
+
+            // ─ Step: save ───────────────────────────────────────────────────────
+            using (_logger.BeginScope(new { Step = "save" }))
+            {
+                var saveSw = Stopwatch.StartNew();
+                _logger.LogDebug("save: start");
+                try
+                {
+                    userPrincipal.Save();
+                }
+                finally
+                {
+                    _logger.LogDebug("save: complete duration={ElapsedMs}", saveSw.ElapsedMilliseconds);
+                }
+            }
 
             // Clear the "must change at next logon" flag only after a confirmed successful save
             if (_options.ClearMustChangePasswordFlag && mustChangeFlag)
@@ -115,8 +171,18 @@ public sealed class PasswordChangeProvider : IPasswordChangeProvider
         catch (PasswordException passwordEx)
         {
             var item = new ApiErrorItem(ApiErrorCode.ComplexPassword, passwordEx.Message);
-            _logger.LogWarning(passwordEx, "Password complexity error for user {Username}", username);
+            ExceptionChainLogger.LogExceptionChain(_logger, passwordEx,
+                "Password complexity error for user {Username}", username);
             return item;
+        }
+        catch (PrincipalOperationException principalEx)
+        {
+            // Distinct targeted catch (D-02): default Serilog destructure, NOT the chain walker.
+            // Response shape matches the existing generic catch below to preserve user-facing behavior.
+            _logger.LogWarning(principalEx,
+                "Principal operation failed for user {Username} hresult={HResult} errorCode={ErrorCode}",
+                username, $"0x{principalEx.HResult:X8}", principalEx.ErrorCode);
+            return new ApiErrorItem(ApiErrorCode.Generic, "An unexpected error occurred. Please contact IT Support.");
         }
         catch (Exception ex)
         {
@@ -124,7 +190,15 @@ public sealed class PasswordChangeProvider : IPasswordChangeProvider
                 ? apiError.ToApiErrorItem()
                 : new ApiErrorItem(ApiErrorCode.Generic, "An unexpected error occurred. Please contact IT Support.");
 
-            _logger.LogError(ex, "Unexpected error during password change for user {Username}", username);
+            if (ex is System.DirectoryServices.DirectoryServicesCOMException comEx)
+            {
+                ExceptionChainLogger.LogExceptionChain(_logger, comEx,
+                    "Unexpected AD COM error for user {Username}", username);
+            }
+            else
+            {
+                _logger.LogError(ex, "Unexpected error during password change for user {Username}", username);
+            }
             return item;
         }
 
@@ -408,7 +482,7 @@ public sealed class PasswordChangeProvider : IPasswordChangeProvider
 
             if (comEx.HResult == E_ACCESSDENIED || comEx.HResult == ERROR_DS_CONSTRAINT_VIOLATION)
             {
-                _logger.LogWarning(comEx,
+                ExceptionChainLogger.LogExceptionChain(_logger, comEx,
                     "AD rejected ChangePassword for {User} with HRESULT=0x{Hex:X8}; message={Message}. " +
                     "Treating as minimum-password-age violation. If this user IS allowed to change password, " +
                     "verify the service account has the 'Change Password' extended right.",
@@ -428,13 +502,13 @@ public sealed class PasswordChangeProvider : IPasswordChangeProvider
             // when explicitly opted in, because it bypasses AD password history enforcement.
             if (_options.UseAutomaticContext || !_options.AllowSetPasswordFallback)
             {
-                _logger.LogWarning(comEx,
+                ExceptionChainLogger.LogExceptionChain(_logger, comEx,
                     "ChangePassword failed (HRESULT={HResult}); SetPassword fallback is {Status} (UseAutomaticContext={Auto}, AllowSetPasswordFallback={Allow})",
                     comEx.HResult, _options.AllowSetPasswordFallback ? "disabled (auto context)" : "disabled", _options.UseAutomaticContext, _options.AllowSetPasswordFallback);
                 throw;
             }
 
-            _logger.LogWarning(comEx,
+            ExceptionChainLogger.LogExceptionChain(_logger, comEx,
                 "ChangePassword failed (HRESULT={HResult}), falling back to SetPassword for user {User}. Note: SetPassword bypasses AD password history.",
                 comEx.HResult, userPrincipal.Name);
             userPrincipal.SetPassword(newPassword);
