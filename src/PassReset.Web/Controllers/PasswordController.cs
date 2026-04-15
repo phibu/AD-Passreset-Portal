@@ -174,6 +174,17 @@ public sealed class PasswordController : ControllerBase
             }
         }
 
+        // Open request-scoped logging context so every downstream log event (provider,
+        // decorator, email fire-and-forget, SIEM audit) inherits Username / TraceId / ClientIp.
+        // MUST be `using var` so the scope survives the awaited provider call (async disposal).
+        var traceId = System.Diagnostics.Activity.Current?.TraceId.ToString() ?? "unknown";
+        using var requestScope = _logger.BeginScope(new Dictionary<string, object>
+        {
+            ["Username"] = model.Username,
+            ["TraceId"] = traceId,
+            ["ClientIp"] = clientIp,
+        });
+
         // Perform the password change
         var error = await _provider.PerformPasswordChangeAsync(model.Username, model.CurrentPassword, model.NewPassword);
 
