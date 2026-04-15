@@ -8,6 +8,25 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Automated test foundation: xUnit v3 backend suite (LockoutPasswordChangeProvider,
+  PwnedPasswordChecker, ApiErrorCode mapping incl PasswordTooRecentlyChanged,
+  SiemSyslogFormatter, Levenshtein, ChangePasswordModel validation, and PasswordController
+  integration via WebApplicationFactory) with coverlet.msbuild thresholds enforced
+  (20% line / 20% branch baseline — raised over time as coverage grows). (QA-001)
+- Automated frontend test suite: Vitest + React Testing Library covering PasswordForm,
+  PasswordStrengthMeter, ErrorBoundary, useSettings, levenshtein, and passwordGenerator
+  with v8 coverage thresholds (50% line / 40% branch). (QA-001)
+- CI gate: new reusable `.github/workflows/tests.yml` called from `ci.yml` (after build)
+  and `release.yml`; the release publish job is blocked on test failure via `needs: tests`,
+  so a failing test prevents the release zip from being built and uploaded. (QA-001)
+
+### Changed
+- `PwnedPasswordChecker` converted from internal static to an instance class with
+  injected `HttpClient` (DI) for testability. No behavior change. (QA-001)
+- Extracted `SiemSyslogFormatter` (pure static helper) from `SiemService` so RFC 5424
+  packet construction is testable without sockets. No behavior change. (QA-001)
+
 ---
 
 ## [1.2.3] — 2026-04-14
