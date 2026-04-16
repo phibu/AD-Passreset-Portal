@@ -67,7 +67,7 @@ Source: 21 GitHub issues (#19–#39) opened 2026-04-16. Must ship before v2.0 wo
   - [x] 08-05-PLAN.md — Installer additive-merge sync (schema-driven, arrays atomic, never modify existing) (STAB-010)
   - [x] 08-06-PLAN.md — Installer schema-drift check rewritten (always runs on upgrade) (STAB-012)
   - [x] 08-07-PLAN.md — Publish-PassReset.ps1 ships schema in release zip + pre-publish Test-Json (STAB-008)
-  - [ ] 08-08-PLAN.md — Operator docs + CHANGELOG (STAB-007..012)
+  - [x] 08-08-PLAN.md — Operator docs + CHANGELOG (STAB-007..012)
 
 ### Phase 9: Security Hardening
 **Goal**: Production deployments resist account enumeration, enforce rate-limit + reCAPTCHA, ship structured audit events, and route credentials through env vars instead of plaintext config
