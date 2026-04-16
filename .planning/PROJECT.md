@@ -60,7 +60,16 @@ A reliable, secure, self-service password reset portal that fits into corporate 
 - [ ] **FEAT-004** HIBP breach status indicator on new-password blur, respecting `FailOpenOnPwnedCheckUnavailable`
 - [ ] **QA-001** Test foundation — xUnit (backend) + Vitest/RTL (frontend), CI gates block on test failures
 
-### Active (v2.0.0 — Platform evolution)
+### Active (v1.4.0 — Stabilization, pre-v2.0 hardening)
+
+Triage of 21 GitHub issues opened 2026-04-16 against v1.3.2. Must ship before v2.0 work begins. See REQUIREMENTS.md STAB-001..021 for full list.
+
+- [ ] **Phase 7** — Installer & Deployment Fixes (STAB-001..006): port 80 conflict, same-version prompt, AppPool identity, double-change crash, broken Uninstall script, dependency detection
+- [ ] **Phase 8** — Configuration Schema & Sync (STAB-007..012): JSON comments, schema manifest, pre-flight validation, config sync on upgrade, drift-check fix
+- [ ] **Phase 9** — Security Hardening (STAB-013..017): account enumeration, rate-limit + reCAPTCHA tests, audit events, HTTPS/HSTS enforcement, env-var secrets
+- [ ] **Phase 10** — Operational Readiness (STAB-018..021): /health dependency checks, post-deploy verification, CI security checks, AD policy display
+
+### Queued (v2.0.0 — Platform evolution)
 
 - [ ] **V2-001** Multi-OS support — research + PoC Docker image that performs a password change against a test AD without `System.DirectoryServices.AccountManagement`
 - [ ] **V2-002** Local password protection DB (lithnet-style): operator-managed banned words + attempted-pwned lookup table; enforced even when stricter than AD policy
@@ -82,6 +91,8 @@ A reliable, secure, self-service password reset portal that fits into corporate 
 | Coarse phase granularity + parallel plan execution | Fewer, broader phases fit the three-milestone structure; QA-001 runs parallel to FEAT work | Chosen 2026-04-14 |
 | No tech stack changes this milestone chain | Reduce risk; features must fit current React 19 / MUI 6 / ASP.NET Core 10 | Locked |
 | Balanced model profile (Sonnet) for agents | Good quality/cost for a mature brownfield project | Chosen 2026-04-14 |
+| Insert v1.4.0 stabilization milestone before v2.0 | 21 GitHub issues opened against v1.3.2 represent install/security regressions blocking confident v2.0 work | Chosen 2026-04-16 |
+| STAB-017 (env-var secrets) is a stepping stone, not the full V2-003 | Env vars unblock production deployments now without committing to a DPAPI/Key Vault mechanism v2.0 may revisit | Chosen 2026-04-16 |
 
 ## Evolution
 
