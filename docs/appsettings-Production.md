@@ -466,3 +466,31 @@ Each syslog message follows RFC 5424 format with a structured-data element:
 | `ChangeNotPermitted` | User blocked by AD group allow/block list |
 | `ValidationFailed` | Request rejected by model validation |
 | `Generic` | Unexpected server-side error |
+
+---
+
+## Section notes (formerly inline in template)
+
+As of v1.4.0 the production template (`appsettings.Production.template.json`) is **pure JSON** — no `//` comments. The inline notes that previously lived in the template are preserved verbatim below so operators retain the historical guidance.
+
+### Logging
+
+> By default logs go to `%SystemDrive%\inetpub\logs\PassReset\passreset-YYYYMMDD.log`.
+> Override `path` in `WriteTo[File].Args` to change location. The IIS AppPool identity
+> (`IIS AppPool\PassReset` by default) must have Modify rights on the parent folder —
+> the installer grants this automatically.
+
+(Full rotation/retention behaviour is documented in [Serilog (file logging)](#serilog-file-logging) above.)
+
+### Branding (FEAT-001)
+
+> Operator branding (FEAT-001).
+> Omit the entire `"Branding"` block to keep the v1.2.3 default look
+> (LockPersonIcon + "PassReset"). Asset files (logo, favicon) live in
+> `C:\ProgramData\PassReset\brand\` by default — set `"AssetRoot"` to override.
+
+(Per-field semantics for `CompanyName`, `PortalName`, `HelpdeskUrl`, `HelpdeskEmail`, `UsageText`, `LogoFileName`, `FaviconFileName`, `AssetRoot` are documented in the Branding section above.)
+
+### Why pure JSON?
+
+The template now validates against [`appsettings.schema.json`](../src/PassReset.Web/appsettings.schema.json) (JSON Schema Draft 2020-12). PowerShell `Test-Json`, `System.Text.Json`, and the installer's pre-flight validator all reject JSONC (`//` comments). Keeping the template pure JSON unblocks automated schema validation in CI, during `Install-PassReset.ps1` upgrades, and inside the runtime's startup validators.
