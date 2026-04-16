@@ -321,6 +321,65 @@ function Sync-AppSettingsAgainstSchema {
     }
 }
 
+# ─── Schema Drift Check (plan 08-06 / STAB-012) ───────────────────────────────
+# Purely diagnostic check run AFTER sync. Reads the schema (D-17) as the
+# authoritative source for required keys and ALWAYS runs on upgrade (D-18)
+# rather than silently skipping when the live config happens to parse. Never
+# mutates the file - reports missing required keys, obsolete keys still
+# present, and (informationally) unknown top-level keys. Reuses the
+# Get-SchemaKeyManifest / Get-LiveValueAtPath helpers from plan 08-05.
+
+function Test-AppSettingsSchemaDrift {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $SchemaPath,
+        [Parameter(Mandatory)] [string] $ConfigPath
+    )
+    if (-not (Test-Path $SchemaPath)) {
+        Write-Warn "Schema not found at $SchemaPath - drift check skipped."
+        return [PSCustomObject]@{ Missing = @(); Obsolete = @(); Unknown = @(); Skipped = $true }
+    }
+    if (-not (Test-Path $ConfigPath)) {
+        Write-Warn "Live config not found at $ConfigPath - drift check skipped."
+        return [PSCustomObject]@{ Missing = @(); Obsolete = @(); Unknown = @(); Skipped = $true }
+    }
+
+    # Intentionally NO try/catch around parsing: D-18 forbids silently skipping
+    # when live config parses OK (the old bug). If JSON parsing fails here, the
+    # 08-04 pre-flight should have caught it first; if it didn't, surface the
+    # exception so the operator sees the problem.
+    $schema = Get-Content $SchemaPath -Raw | ConvertFrom-Json
+    $live   = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+
+    $manifest = Get-SchemaKeyManifest -Schema $schema
+
+    $missing  = @()
+    $obsolete = @()
+    foreach ($entry in $manifest) {
+        $look = Get-LiveValueAtPath -Config $live -Path $entry.Path
+        if ($entry.IsObsolete) {
+            if ($look.Exists) { $obsolete += $entry }
+        } elseif (-not $look.Exists) {
+            $missing += $entry
+        }
+    }
+
+    # Unknown top-level keys (informational only - schema allows additionalProperties: true)
+    $schemaTopKeys = @()
+    if ($schema.properties) {
+        $schemaTopKeys = @($schema.properties.PSObject.Properties.Name)
+    }
+    $liveTopKeys = @($live.PSObject.Properties.Name)
+    $unknown = @($liveTopKeys | Where-Object { $schemaTopKeys -notcontains $_ })
+
+    return [PSCustomObject]@{
+        Missing  = $missing
+        Obsolete = $obsolete
+        Unknown  = $unknown
+        Skipped  = $false
+    }
+}
+
 # ─── 1. Prerequisites ─────────────────────────────────────────────────────────
 
 Write-Step 'Checking prerequisites'
@@ -1041,6 +1100,54 @@ if ($siteExists -and (Test-Path $prodConfig)) {
         -SchemaPath $schemaFile `
         -ConfigPath $prodConfig `
         -Mode $ConfigSync
+}
+
+# ─── 9c. Schema drift check (plan 08-06 / STAB-012) ───────────────────────────
+# Runs UNCONDITIONALLY on every upgrade (D-18) - no silent-skip when live
+# parses OK. Schema is the source of truth (D-17). Purely diagnostic - any
+# mutation is sync's job (9b above). Positioned AFTER sync so the report
+# reflects the post-sync state: 'Missing' only surfaces when sync was None or
+# the schema had no default for a required key.
+
+if ($siteExists) {
+    Write-Step 'Checking appsettings.Production.json for schema drift'
+    $drift = Test-AppSettingsSchemaDrift `
+        -SchemaPath (Join-Path $PhysicalPath 'appsettings.schema.json') `
+        -ConfigPath $prodConfig
+
+    if ($drift.Skipped) {
+        # Already warned inside the function - nothing more to do.
+    } else {
+        $hasDrift = $false
+        if ($drift.Missing.Count -gt 0) {
+            $hasDrift = $true
+            Write-Warn "Schema drift: $($drift.Missing.Count) required key(s) still missing from ${prodConfig}:"
+            foreach ($m in $drift.Missing) {
+                $defaultHint = if ($m.HasDefault) { " (schema default: $($m.Default))" } else { ' (no default in schema; manual entry required)' }
+                Write-Host "    - $($m.Path)$defaultHint" -ForegroundColor Yellow
+            }
+            if ($ConfigSync -eq 'None') {
+                Write-Warn 'Re-run with -ConfigSync Merge to add missing keys automatically.'
+            }
+        }
+        if ($drift.Obsolete.Count -gt 0) {
+            $hasDrift = $true
+            Write-Warn "Schema drift: $($drift.Obsolete.Count) obsolete key(s) present in ${prodConfig}:"
+            foreach ($o in $drift.Obsolete) {
+                Write-Host "    - $($o.Path) (obsolete since v$($o.ObsoleteSince))" -ForegroundColor Yellow
+            }
+            Write-Warn 'Re-run with -ConfigSync Review to remove obsolete keys interactively.'
+        }
+        if ($drift.Unknown.Count -gt 0) {
+            Write-Host "  [i] $($drift.Unknown.Count) unknown top-level key(s) in $prodConfig (allowed; informational only):" -ForegroundColor DarkGray
+            foreach ($u in $drift.Unknown) {
+                Write-Host "    - $u" -ForegroundColor DarkGray
+            }
+        }
+        if (-not $hasDrift) {
+            Write-Ok 'No schema drift detected.'
+        }
+    }
 }
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
