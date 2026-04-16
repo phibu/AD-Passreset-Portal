@@ -133,9 +133,34 @@ $missing = $requiredFeatures | Where-Object {
 }
 
 if ($missing) {
-    Write-Warn "Installing missing IIS features: $($missing -join ', ')"
-    Install-WindowsFeature -Name $missing -IncludeManagementTools | Out-Null
-    Write-Ok 'IIS features installed'
+    Write-Warn 'Missing IIS features detected:'
+    $missing | ForEach-Object { Write-Host "    - $_" -ForegroundColor Yellow }
+    if (-not $Force) {
+        $consent = Read-Host '  Install missing IIS features now via DISM? [Y/N]'
+        if ($consent -notmatch '^[Yy]') {
+            Write-Host ''
+            Write-Host '  To install manually, run as Administrator:' -ForegroundColor Yellow
+            foreach ($f in $missing) {
+                Write-Host "    dism /online /enable-feature /featurename:$f /all /norestart" -ForegroundColor Yellow
+            }
+            Write-Host ''
+            exit 0
+        }
+    } else {
+        Write-Ok '-Force specified - installing missing IIS features via DISM'
+    }
+    foreach ($f in $missing) {
+        if ($PSCmdlet.ShouldProcess("IIS feature $f", 'Enable via DISM')) {
+            $dismExit = (Start-Process -FilePath dism.exe `
+                -ArgumentList @('/online','/enable-feature',"/featurename:$f",'/all','/norestart','/quiet') `
+                -Wait -PassThru -NoNewWindow).ExitCode
+            # 3010 = success, reboot pending (Microsoft DISM convention)
+            if ($dismExit -ne 0 -and $dismExit -ne 3010) {
+                Abort "DISM failed enabling $f (exit $dismExit). Run: dism /online /get-featureinfo /featurename:$f"
+            }
+        }
+    }
+    Write-Ok 'IIS features enabled via DISM'
 } else {
     Write-Ok 'All required IIS features present'
 }
@@ -146,12 +171,23 @@ $hostingBundle = Get-ItemProperty `
     -ErrorAction SilentlyContinue
 
 if (-not $hostingBundle) {
-    Abort '.NET Hosting Bundle is not installed. Download it from https://dot.net/download and run this script again.'
+    Write-Warn '.NET 10 Hosting Bundle is not installed.'
+    Write-Host '  Required: ASP.NET Core 10.0 Runtime (Hosting Bundle)' -ForegroundColor Yellow
+    Write-Host '  Download: https://dotnet.microsoft.com/download/dotnet/10.0' -ForegroundColor Yellow
+    Write-Host '  Choose "ASP.NET Core Runtime - Hosting Bundle" for Windows.' -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host '  Re-run this installer after the Hosting Bundle is installed.' -ForegroundColor Yellow
+    Write-Host ''
+    exit 0
 }
 
 $installedRuntime = $hostingBundle.Version
 if (-not ($installedRuntime -match '^10\.')) {
-    Abort ".NET 10 Hosting Bundle is required but found version $installedRuntime. Please install the .NET 10 Hosting Bundle."
+    Write-Warn ".NET 10 Hosting Bundle is required but found version $installedRuntime."
+    Write-Host '  Required: ASP.NET Core 10.0 Runtime (Hosting Bundle)' -ForegroundColor Yellow
+    Write-Host '  Download: https://dotnet.microsoft.com/download/dotnet/10.0' -ForegroundColor Yellow
+    Write-Host ''
+    exit 0
 }
 Write-Ok ".NET Hosting Bundle $installedRuntime detected"
 
