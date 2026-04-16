@@ -395,15 +395,78 @@ else {
 
 Write-Step "Configuring site: $SiteName"
 
+# STAB-001: detect port-80 conflict before New-Website (fresh install only;
+# on upgrade the existing binding is preserved).
+$selectedHttpPort = if ($HttpPort -gt 0) { $HttpPort } else { 80 }
+if (-not $siteExists -and $selectedHttpPort -eq 80) {
+    Write-Step 'Checking port 80 availability'
+    $port80Sites = @(Get-WebBinding -Port 80 -Protocol http -ErrorAction SilentlyContinue |
+                       Where-Object { $_.ItemXPath -notmatch "name='$SiteName'" })
+    if ($port80Sites.Count -gt 0) {
+        $conflictSites = $port80Sites | ForEach-Object {
+            if ($_.ItemXPath -match "name='([^']+)'") { $matches[1] } else { '<unknown>' }
+        } | Sort-Object -Unique
+        Write-Warn "Port 80 is already bound by: $($conflictSites -join ', ')"
+
+        if (-not $Force) {
+            Write-Host ''
+            Write-Host '  Choose how to proceed:' -ForegroundColor Yellow
+            Write-Host '    [1] Stop the conflicting site(s) and bind PassReset to port 80' -ForegroundColor Yellow
+            Write-Host '    [2] Use an alternate HTTP port (8080-8090, first free)' -ForegroundColor Yellow
+            Write-Host '    [3] Abort installation' -ForegroundColor Yellow
+            $choice = Read-Host '  Selection [1/2/3]'
+            switch ($choice) {
+                '1' {
+                    foreach ($s in $conflictSites) {
+                        if ($PSCmdlet.ShouldProcess("IIS site $s", 'Stop')) {
+                            Stop-Website -Name $s -ErrorAction Stop
+                            Write-Ok "Stopped site '$s'"
+                        }
+                    }
+                    $selectedHttpPort = 80
+                }
+                '2' {
+                    $selectedHttpPort = $null
+                    foreach ($p in 8080..8090) {
+                        if (-not (Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue)) {
+                            $selectedHttpPort = $p; break
+                        }
+                    }
+                    if (-not $selectedHttpPort) {
+                        Abort 'Ports 80 and 8080-8090 are all in use. Free a port and re-run.'
+                    }
+                    Write-Ok "Using alternate HTTP port $selectedHttpPort"
+                }
+                default {
+                    Write-Host "`n  Cancelled." -ForegroundColor Yellow; exit 0
+                }
+            }
+        } else {
+            # -Force: never silently stop another site (D-02). Pick alternate port.
+            $selectedHttpPort = $null
+            foreach ($p in 8080..8090) {
+                if (-not (Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue)) {
+                    $selectedHttpPort = $p; break
+                }
+            }
+            if (-not $selectedHttpPort) {
+                Abort '-Force: ports 80 and 8080-8090 all in use; aborting rather than stopping a foreign site.'
+            }
+            Write-Ok "-Force specified - port 80 in use, defaulting to alternate port $selectedHttpPort"
+        }
+    } else {
+        Write-Ok 'Port 80 is free'
+    }
+}
+
 if (-not $siteExists) {
-    $httpBindPort = if ($HttpPort -gt 0) { $HttpPort } else { 80 }
     New-Website `
         -Name         $SiteName `
         -PhysicalPath $PhysicalPath `
         -ApplicationPool $AppPoolName `
-        -Port         $httpBindPort `
+        -Port         $selectedHttpPort `
         -Force | Out-Null
-    Write-Ok "Created site $SiteName (HTTP :$httpBindPort placeholder)"
+    Write-Ok "Created site $SiteName (HTTP :$selectedHttpPort placeholder)"
 } else {
     Set-ItemProperty "IIS:\Sites\$SiteName" physicalPath $PhysicalPath
     Set-ItemProperty "IIS:\Sites\$SiteName" applicationPool $AppPoolName
@@ -449,6 +512,17 @@ if ($CertThumbprint -and $HttpPort -le 0) {
     } else {
         Write-Ok "HTTP :$HttpPort binding present (HTTP→HTTPS redirect active)"
     }
+}
+
+# STAB-001 D-03: announce the reachable URLs so operators don't have to inspect IIS.
+$hostHeader = $env:COMPUTERNAME
+if (-not $siteExists) {
+    Write-Ok "PassReset reachable at http://${hostHeader}:${selectedHttpPort}/"
+} else {
+    Write-Ok "PassReset reachable at http://${hostHeader}:${HttpPort}/ (HTTP binding retained from previous install)"
+}
+if ($CertThumbprint) {
+    Write-Ok "PassReset reachable at https://${hostHeader}:${HttpsPort}/ (HTTPS binding configured)"
 }
 
 # ─── 6. NTFS permissions ──────────────────────────────────────────────────────
