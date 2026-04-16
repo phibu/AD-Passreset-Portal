@@ -31,6 +31,102 @@ Secret handling: [`docs/Secret-Management.md`](docs/Secret-Management.md).
 
 ## Version-specific notes
 
+### v1.4.0 — Configuration schema and sync
+
+Phase 8 introduces a JSON Schema (`appsettings.schema.json`) that governs every valid key in
+`appsettings.Production.json`. The installer now validates your live configuration on every
+upgrade and can sync new keys from the schema's defaults without overwriting your customizations.
+
+#### Breaking changes
+
+- **PowerShell 7+ required.** `Install-PassReset.ps1` now uses `Test-Json -SchemaFile`, which is
+  unavailable in Windows PowerShell 5.1. Install PowerShell 7
+  (`winget install Microsoft.PowerShell`) and invoke the installer via
+  `pwsh -File .\Install-PassReset.ps1`. Running under `powershell.exe` fails at the
+  `#Requires -Version 7.0` line.
+
+- **`appsettings.Production.template.json` is now pure JSON.** Inline `//` comments have been
+  removed so the template parses cleanly with `Test-Json`, `System.Text.Json`, and every other
+  strict JSON consumer. All operator-facing notes that previously lived as inline comments are
+  preserved verbatim in [`docs/appsettings-Production.md`](docs/appsettings-Production.md#section-notes-formerly-inline-in-template).
+
+#### New parameter: `-ConfigSync <Merge|Review|None>`
+
+Controls how the installer reconciles your live `appsettings.Production.json` with the schema
+on upgrade.
+
+| Mode | Behavior |
+|------|----------|
+| `Merge` (default on upgrade) | Adds missing keys using schema defaults. NEVER modifies existing values. NEVER merges array contents — arrays are atomic. Reports obsolete keys (`x-passreset-obsolete: true`) without removing them. |
+| `Review` | Prompts per-key for each missing key (default Yes) and each obsolete key (default No). |
+| `None` | Skips sync entirely. The schema-drift check still runs and reports differences, but no file is written. |
+
+When `-ConfigSync` is omitted, the installer resolves a default based on the scenario:
+
+- **Interactive upgrade** — prompts `Config sync: [M]erge additions / [R]eview each / [S]kip? [M]`
+- **With `-Force`** — defaults to `Merge` and logs the choice
+- **Fresh install** — resolves to `None` silently (template is copied fresh; no live config to sync)
+
+Explicit `-ConfigSync <value>` always wins over the default resolution.
+
+#### New pre-flight validation
+
+Before resolving `-ConfigSync`, the installer runs:
+
+```powershell
+Test-Json -Path appsettings.Production.json -SchemaFile appsettings.schema.json
+```
+
+Failure halts the install with the offending field path and reason — no sync ever operates on
+an invalid file. Edit the live config to fix the reported field, then re-run the installer.
+
+#### Unconditional schema-drift check
+
+After sync (or in `None` mode, after skipping sync), the installer runs an unconditional
+drift check that walks `appsettings.schema.json` as the source of truth and reports:
+
+- **Missing required keys** still absent from the live config (with schema default when
+  available, or "no default in schema; manual entry required" for secret fields)
+- **Obsolete keys** flagged `x-passreset-obsolete: true` still present in the live config
+  (with the `x-passreset-obsolete-since` version)
+- **Unknown top-level keys** present in the live config but absent from the schema root
+  (informational only — `additionalProperties: true` allows them)
+
+The legacy drift walker silently skipped the pass whenever the live config parsed successfully.
+The new check always runs, so schema mismatches never go undetected again.
+
+#### Diagnosing 502 after upgrade
+
+The ASP.NET Core host now fails fast on misconfigured options. Every options class validates
+at DI build via `ValidateOnStart()` — a failure throws `OptionsValidationException` before
+the first request is served, and IIS returns HTTP **502**.
+
+If you see 502 after an upgrade:
+
+1. Open **Event Viewer** → **Windows Logs** → **Application**.
+2. Filter by **Source = `PassReset`**, **Event ID = 1001**.
+3. Read the failure lines. Format:
+
+   ```
+   Section.Field: reason (got "value"). Edit appsettings.Production.json or run Install-PassReset.ps1 -Reconfigure.
+   ```
+
+   Example: `PasswordChangeOptions.LdapPort: must be integer between 1 and 65535 (got "0"). …`
+
+4. Edit `C:\inetpub\PassReset\appsettings.Production.json` to correct the reported fields.
+5. Recycle the pool:
+
+   ```powershell
+   Restart-WebAppPool -Name PassResetPool
+   ```
+
+**Secret redaction:** `SmtpSettings.Password`, `ClientSettings.Recaptcha.PrivateKey`, and LDAP
+credentials surface as `(got "<redacted>")` — the actual secret is never written to the event.
+
+**If no `PassReset` event appears in Event Viewer**, the source is not registered on the host.
+Re-run `Install-PassReset.ps1` from an elevated `pwsh` session to retry the idempotent
+registration, then recycle the pool.
+
 ### Upgrading from 1.2.2 → 1.2.3
 
 #### AppPool identity is now preserved on upgrade (BUG-003)
