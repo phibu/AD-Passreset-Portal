@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+﻿#Requires -Version 7.0
 <#
 .SYNOPSIS
     Builds the frontend, publishes the .NET app, and packages a release zip.
@@ -44,53 +44,36 @@ if (-not $Version) {
 # Strip 'v' prefix for MSBuild /p:Version (semver only, e.g. 1.2.0)
 $semver = if ($Version -match '^v?(\d+\.\d+\.\d+.*)$') { $Matches[1] } else { '0.0.0-dev' }
 
-# ── Validate production template against appsettings.json ────────────────
-# Ensures every config key in appsettings.json exists in the production
-# template. Fails the build if keys are missing — no more forgotten config.
+# ── Validate production template against schema (Phase 8 / D-02) ─────────────
+# Schema is the single source of truth. CI enforces this on every push; we
+# re-check here as a belt-and-braces gate before cutting a release zip.
 
-$webProject      = Join-Path $repoRoot 'src\PassReset.Web'
-$templatePath    = Join-Path $webProject 'appsettings.Production.template.json'
-$appSettingsPath = Join-Path $webProject 'appsettings.json'
+$webProject   = Join-Path $repoRoot 'src\PassReset.Web'
+$templatePath = Join-Path $webProject 'appsettings.Production.template.json'
+$schemaPath   = Join-Path $webProject 'appsettings.schema.json'
 
-function Get-JsonKeyPaths {
-    param([PSCustomObject] $Obj, [string] $Prefix = '')
-    $paths = @()
-    foreach ($prop in $Obj.PSObject.Properties) {
-        $key = if ($Prefix) { "$Prefix`:$($prop.Name)" } else { $prop.Name }
-        if ($prop.Value -is [PSCustomObject]) {
-            $paths += Get-JsonKeyPaths $prop.Value $key
-        } else {
-            $paths += $key
-        }
-    }
-    return $paths
+if (-not (Test-Path $schemaPath)) {
+    throw "appsettings.schema.json not found at $schemaPath - publish cannot proceed without the schema."
 }
 
-Write-Host "`n[>>] Validating production config template..." -ForegroundColor Cyan
-
-$templateJson   = Get-Content $templatePath -Raw | ConvertFrom-Json
-# Strip // comments from appsettings.json (JSONC → JSON)
-$appSettingsRaw = (Get-Content $appSettingsPath -Raw) -replace '(?m)^\s*//.*$', ''
-$appSettingsJson = $appSettingsRaw | ConvertFrom-Json
-
-# Ignore keys that are not user-configurable (Logging, AllowedHosts)
-$ignoreSections = @('Logging', 'AllowedHosts')
-
-$sourceKeys   = Get-JsonKeyPaths $appSettingsJson | Where-Object {
-    $section = ($_ -split ':')[0]
-    $section -notin $ignoreSections
+Write-Host "`n[>>] Validating template against schema (pre-publish)..." -ForegroundColor Cyan
+$validationErrors = @()
+try {
+    $valid = Test-Json `
+        -Path $templatePath `
+        -SchemaFile $schemaPath `
+        -ErrorVariable validationErrors `
+        -ErrorAction SilentlyContinue
+} catch {
+    $valid = $false
+    $validationErrors = @($_.Exception.Message)
 }
-$templateKeys = Get-JsonKeyPaths $templateJson
-
-$missing = $sourceKeys | Where-Object { $_ -notin $templateKeys }
-
-if ($missing) {
-    Write-Host "`n  [ERR] Production template is missing these config keys:" -ForegroundColor Red
-    $missing | ForEach-Object { Write-Host "        - $_" -ForegroundColor Red }
-    Write-Host "`n  Update src\PassReset.Web\appsettings.Production.template.json and retry.`n" -ForegroundColor Red
-    exit 1
+if (-not $valid) {
+    Write-Host "`n  [ERR] Template validation failed against schema:" -ForegroundColor Red
+    foreach ($e in $validationErrors) { Write-Host "        - $e" -ForegroundColor Red }
+    throw "Pre-publish validation failed. Fix template or schema and retry."
 }
-Write-Host "  [OK] Production template covers all config keys" -ForegroundColor Green
+Write-Host "  [OK] Template conforms to schema" -ForegroundColor Green
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
 Write-Host "`n[>>] Building React frontend..." -ForegroundColor Cyan
@@ -115,6 +98,11 @@ Write-Host "  [OK] Published to $publishOut" -ForegroundColor Green
 
 # Copy the production config template into publish output so the installer finds it
 Copy-Item $templatePath -Destination $publishOut
+
+# Copy the JSON Schema alongside the template — the installer (Phase 8) uses it
+# for pre-flight Test-Json validation and additive-merge sync on upgrade.
+Copy-Item $schemaPath -Destination $publishOut
+Write-Host "  [OK] Copied appsettings.schema.json to $publishOut" -ForegroundColor Green
 
 # ── Package release zip ───────────────────────────────────────────────────────
 $zipName    = "PassReset-$Version.zip"
