@@ -1,19 +1,11 @@
 # PassReset — Requirements
 
-**Active milestones:** v1.3.1 (patch) → v2.0.0 (platform evolution)
-**Prior milestones:** v1.2.3 ✅ · v1.3.0 ✅ (see `milestones/`)
-**Last updated:** 2026-04-15
+**Active milestone:** v2.0.0 (Platform evolution)
+**Prior milestones:** v1.2.3 ✅ · v1.3.0 ✅ · v1.3.1 ✅ · v1.3.2 ✅ (see `milestones/`)
+**Last updated:** 2026-04-16
 
 > REQ IDs are stable references used by `ROADMAP.md` and phase plans.
 > Delivered requirements live in `milestones/v{version}-REQUIREMENTS.md`.
-
----
-
-## v1.3.1 — Diagnostic patch
-
-### Bugs
-
-- [ ] **BUG-004**: Structured diagnostic logging around every step of the AD password-change flow so operators can diagnose intermittent `0x80070005 (E_ACCESSDENIED)` and related failures without reproducing the issue in a debugger. Every request correlated via `HttpContext.TraceIdentifier`. Full exception chain logged (type, `HResult`, message, depth). Targeted catches for `PasswordException`, `PrincipalOperationException`, `DirectoryServicesCOMException` with distinct context. AD context captured (domain, DC, identity type, `UserCannotChangePassword`, `LastPasswordSet`). Lockout decorator state transitions logged. **Constraints:** no passwords/secrets/SIEM-forbidden values written to logs; user-facing error responses unchanged from v1.3.0; no new database/audit dependencies.
 
 ---
 
@@ -50,9 +42,8 @@
 
 | REQ-ID | Phase | Plan | Status |
 |---|---|---|---|
-| BUG-004 | Phase 7 (v1.3.1 AD Diagnostics) | TBD | Active |
 | V2-001 | Phase 4 (v2.0 Multi-OS PoC) | TBD | Active |
 | V2-002 | Phase 5 (v2.0 Local Password DB) | TBD | Active |
 | V2-003 | Phase 6 (v2.0 Secure Config Storage) | TBD | Active |
 
-**Coverage:** 4/4 active requirements mapped ✓ · 0 orphans
+**Coverage:** 3/3 active requirements mapped ✓ · 0 orphans

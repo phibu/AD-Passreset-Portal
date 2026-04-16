@@ -1,38 +1,38 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3.1
-milestone_name: AD Diagnostics (patch)
-status: in_progress
-last_updated: "2026-04-15T15:00:00.000Z"
+milestone: v2.0.0
+milestone_name: Platform evolution
+status: queued
+last_updated: "2026-04-16T00:00:00.000Z"
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 100
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # PassReset — Project State
 
-**Last updated:** 2026-04-15
+**Last updated:** 2026-04-16
 
 ## Project Reference
 
 - **Project:** PassReset (self-service AD password change portal)
 - **Core value:** Reliable, secure, self-service password change that fits corporate AD environments without bespoke deployment engineering
-- **Baseline version:** v1.2.2
-- **Current milestone:** v1.3.1 (AD Diagnostics patch)
-- **Milestone chain:** v1.2.3 ✅ → v1.3.0 ✅ → v1.3.1 (active) → v2.0.0
-- **Current focus:** Phase 07 (AD Diagnostics) — promoted from backlog 999.1
+- **Baseline version:** v1.3.2
+- **Current milestone:** v2.0.0 (Platform evolution) — queued
+- **Milestone chain:** v1.2.3 ✅ → v1.3.0 ✅ → v1.3.1 ✅ → v1.3.2 ✅ → v2.0.0 (active)
+- **Current focus:** Phase 04 (v2.0 Multi-OS PoC) — next to shape
 
 ## Current Position
 
-Milestone: v1.3.1 — NOT STARTED
-Next: Phase 07 (v1.3.1 AD Diagnostics) — needs `/gsd-discuss-phase 7` then `/gsd-plan-phase 7`
+Milestone: v2.0.0 — NOT STARTED
+Next: Phase 04 (v2.0 Multi-OS PoC) — needs `/gsd-discuss-phase 4` then `/gsd-plan-phase 4`
 
-- **Phase:** 07 active
-- **Next:** `/gsd-discuss-phase 7` to shape the diagnostic logging plan
-- **Status:** BUG-004 mapped; Phase 07 dir created at `.planning/phases/07-v1-3-1-ad-diagnostics/`
+- **Phase:** 04 active (not started)
+- **Next:** `/gsd-discuss-phase 4` to shape the Multi-OS PoC approach
+- **Status:** V2-001..003 mapped; phases 04/05/06 directories pending
 - **Progress:** [░░░░░░░░░░] 0%
 
 ## Milestone Map
@@ -41,15 +41,16 @@ Next: Phase 07 (v1.3.1 AD Diagnostics) — needs `/gsd-discuss-phase 7` then `/g
 |---|---|---|
 | v1.2.3 | 01 | ✅ Shipped 2026-04-14 (archived) |
 | v1.3.0 | 02, 03 | ✅ Shipped 2026-04-15 (archived) |
-| v1.3.1 | 07 | Active — 0/1 plans |
+| v1.3.1 | 07 | ✅ Shipped 2026-04-15 (archived) |
+| v1.3.2 | 07 (code review fix rollup) | ✅ Shipped 2026-04-16 (archived) |
 | v2.0.0 | 04, 05, 06 | Queued — 0/3 phases started |
 
 ## Performance Metrics
 
-- Phases complete: 3/6 (01, 02, 03)
-- Plans complete in shipped milestones: 12/12 (01: 3/3, 02: 5/5, 03: 4/4)
-- Requirements delivered: BUG-001..003, QA-001, FEAT-001..004 (8/11 from the 3-milestone chain)
-- Releases shipped: 2/3 (v1.2.3, v1.3.0)
+- Phases complete: 4/7 (01, 02, 03, 07)
+- Plans complete in shipped milestones: 13/13 (01: 3/3, 02: 5/5, 03: 4/4, 07: 1/1)
+- Requirements delivered: BUG-001..004, QA-001, FEAT-001..004 (9/12 from the four-milestone chain)
+- Releases shipped: 4/5 (v1.2.3, v1.3.0, v1.3.1, v1.3.2)
 
 ## Accumulated Context
 
@@ -60,13 +61,14 @@ Next: Phase 07 (v1.3.1 AD Diagnostics) — needs `/gsd-discuss-phase 7` then `/g
 - **2026-04-14:** Coarse granularity + parallel plan execution chosen for the three-milestone chain
 - **2026-04-14:** Tech stack locked (React 19 / MUI 6 / ASP.NET Core 10) for v1.2.3 and v1.3.0; v2.0 may introduce cross-platform infrastructure
 - **2026-04-15:** Phase 03-02 split across two sessions; client half recovered via forensics and committed as 133a2a4
+- **2026-04-16:** v1.3.2 cut as a code-review-fix patch rollup on top of v1.3.1 (WR-01/WR-02/WR-03); no new phase created, no user-visible change
 
 ### Active TODOs
 
-- `/gsd-discuss-phase 7` — shape the AD diagnostic logging approach
-- `/gsd-plan-phase 7` — produce 07-01-PLAN.md (single cohesive logging refactor)
-- Execute → verify → ship v1.3.1 patch release
-- After v1.3.1 ships: pivot to v2.0 Phase 04 (Multi-OS PoC)
+- `/gsd-discuss-phase 4` — shape the v2.0 Multi-OS PoC approach
+- `/gsd-plan-phase 4` — produce plan(s) under Phase 04
+- Execute → verify → ship v2.0.0
+- Triage Dependabot branches before v2.0 work begins
 
 ### Blockers
 
@@ -75,11 +77,11 @@ Next: Phase 07 (v1.3.1 AD Diagnostics) — needs `/gsd-discuss-phase 7` then `/g
 ### Notes
 
 - Forensic report for 2026-04-15 partial-commit recovery: `.planning/forensics/report-20260415-122540.md`
-- Backlog item 999.1 (E_ACCESSDENIED diagnosis) captured and parked — committed as bfb413f
+- Backlog item 999.1 (E_ACCESSDENIED diagnosis) delivered in v1.3.1 (BUG-004)
 - `CLAUDE.md` still contains stale `<!-- GSD:project-start -->` markers referring to the rolled-back MSI v2.0 scope. Authoritative v2.0 scope lives in `.planning/PROJECT.md` and `.planning/REQUIREMENTS.md`.
 
 ## Session Continuity
 
-- **Previous session (2026-04-15 AM):** Forensic recovery + phase 03 completion (phases 02/03 shipped, PR #17 merged, tag v1.3.0 pushed, release.yml published `PassReset-v1.3.0.zip`).
-- **This session (2026-04-15 PM):** Closed v1.2.3 and v1.3.0 milestones — archives at `milestones/v1.2.3-ROADMAP.md`, `v1.2.3-REQUIREMENTS.md`, `v1.3.0-ROADMAP.md`, `v1.3.0-REQUIREMENTS.md`. ROADMAP.md collapsed to active v2.0 phases. REQUIREMENTS.md scoped to V2-001..003. STATE.md rolled to v2.0.0.
+- **Previous session (2026-04-15):** Shipped v1.3.1 AD Diagnostics (BUG-004); deep code review surfaced WR-01/WR-02/WR-03 which were fixed post-tag.
+- **This session (2026-04-16):** Cut v1.3.2 patch rolling up post-v1.3.1 review fixes. Updated REQUIREMENTS.md/ROADMAP.md chain, archived `v1.3.2-REQUIREMENTS.md` / `v1.3.2-ROADMAP.md`, rolled STATE.md to v2.0.0 queued.
 - **Next session:** Triage Dependabot branches → `/gsd-cleanup` phase dirs → `/gsd-discuss-phase 4` (or `/gsd-new-milestone` for a fuller context refresh).

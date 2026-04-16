@@ -10,6 +10,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.3.2] — 2026-04-16
+
+Patch release rolling up the post-v1.3.1 deep code review fixes. No user-visible behavior changes; all changes are internal diagnostic-path hardening on top of v1.3.1.
+
+### Fixed
+- **`ExceptionChainLogger`** (WR-01): added cycle protection and a depth bound to the `InnerException` walker so a malformed or adversarial exception chain (self-referencing or pathologically deep) can no longer spin indefinitely or bloat a single log event.
+- **`PasswordChangeProvider`** (WR-01): aligned the COM/`DirectoryServicesCOMException` error log template placeholder count with its named-argument list to stop Serilog's structured renderer from dropping the `ExceptionChain` property on that path.
+- **`LockoutPasswordChangeProvider`** (WR-03): removed a redundant `Debug` log emitted from inside `IncrementCounter` on every attempt — the outer call site already logs the resulting counter state as `Warning`, so the inner entry only duplicated output without adding context.
+
+### Testing
+- `PasswordLogRedactionTests`: renamed the misleading redaction tests so their names reflect what they actually assert (sentinel-plaintext on the exception-log path), and added a direct `ExceptionChainLogger` sentinel test that confirms AD-supplied `Exception.Message` passthrough is bounded by the documented accepted-risk decision.
+
+---
+
 ## [1.3.1] — 2026-04-15
 
 Diagnostic patch release. No user-visible behavior changes. Existing `appsettings.Production.json` continues to work unchanged; operators can flip `Serilog:MinimumLevel:Default` to `Debug` to enable the new step-granular diagnostics.
