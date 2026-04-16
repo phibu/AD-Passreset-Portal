@@ -4,6 +4,106 @@ This file overrides `appsettings.json` in production. Place it in the same folde
 
 ---
 
+## Authoritative schema
+
+The authoritative source of truth for every valid configuration key is
+[`src/PassReset.Web/appsettings.schema.json`](../src/PassReset.Web/appsettings.schema.json).
+It ships in every release zip (copied into the deploy root alongside the template) so the
+installer and runtime can validate your live config against the exact schema of the installed
+version.
+
+| Aspect | Detail |
+|---|---|
+| Format | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/schema) |
+| Validation scope | Required keys, types (`boolean` / `integer` / `string` / `array` / `object`), enums, `pattern` regexes, numeric `minimum` / `maximum`, per-leaf `default` values |
+| Out-of-scope in schema | Cross-field invariants (e.g. "`SmtpSettings.Host` set ⇒ `Port` must be 1..65535") — those are enforced at runtime by `IValidateOptions<T>` implementations (per decision D-04) |
+| Custom markers | `x-passreset-obsolete: true` flags a deprecated key. `x-passreset-obsolete-since: "1.3.2"` records the version it was deprecated in. The installer's ConfigSync uses these markers to prompt for removal on upgrade. |
+| Pre-flight | `Test-Json -Path appsettings.Production.json -SchemaFile appsettings.schema.json` runs inside `Install-PassReset.ps1` on every upgrade, BEFORE any sync. Failure halts install with an actionable field-path error. |
+| Host requirement | PowerShell 7+ on the install host (`Test-Json -SchemaFile` is unavailable in Windows PowerShell 5.1). |
+
+Operators who want to pre-validate an edit before restarting the app can run the same pre-flight
+command locally:
+
+```powershell
+pwsh -Command "Test-Json -Path 'C:\inetpub\PassReset\appsettings.Production.json' -SchemaFile 'C:\inetpub\PassReset\appsettings.schema.json' -ErrorVariable errors"
+```
+
+---
+
+## Startup validation
+
+Phase 8 introduced fail-fast runtime validation. Every options class is registered via
+`AddOptions<T>().Bind(section).ValidateOnStart()` with an `IValidateOptions<T>` implementation —
+so misconfigured values are detected at DI-build time, not on the first request.
+
+**Failure flow:**
+
+1. `builder.Build()` (or equivalently the first `app.Run()`) throws
+   `OptionsValidationException` with one or more failure messages.
+2. `StartupValidationFailureLogger` intercepts the exception and writes each failure message
+   to the Windows **Application** Event Log under source `PassReset`, **event ID 1001**, type
+   Error.
+3. The exception re-throws. IIS returns HTTP **502** to the next request; the ASP.NET Core
+   Module records the entry-point crash in its own stdout log.
+
+**Error message format (D-08):**
+
+```
+{Section}.{Field}: {reason} (got "{actual}"). Edit appsettings.Production.json or run Install-PassReset.ps1 -Reconfigure.
+```
+
+Example:
+
+```
+PasswordChangeOptions.LdapPort: must be integer between 1 and 65535 (got "0"). Edit appsettings.Production.json or run Install-PassReset.ps1 -Reconfigure.
+```
+
+Sensitive fields (`SmtpSettings.Password`, `ClientSettings.Recaptcha.PrivateKey`, LDAP
+credentials, etc.) are rendered as `(got "<redacted>")` — validator unit tests assert that the
+offending secret never leaks into the message.
+
+### Diagnosing a 502 after upgrade or config edit
+
+1. Open **Event Viewer** → **Windows Logs** → **Application**.
+2. Filter by **Source = `PassReset`**, **Event ID = 1001**.
+3. Read the failure lines — each one names the exact JSON path and the offending value.
+4. Edit `C:\inetpub\PassReset\appsettings.Production.json` (or re-run the installer with
+   `-Reconfigure`).
+5. Reload the pool:
+
+   ```powershell
+   Restart-WebAppPool -Name PassResetPool
+   ```
+
+**If no `PassReset` event appears in Event Viewer:** the Event Log source is not registered on
+this host. Re-run `Install-PassReset.ps1` — the installer registers the source idempotently
+during the prerequisites phase (requires admin, which the installer already asserts via
+`#Requires -RunAsAdministrator`).
+
+---
+
+## Validation rules per options class
+
+The following runtime validation invariants are enforced in addition to the structural rules
+in `appsettings.schema.json`. Failures surface in the same Event Log path (source `PassReset`,
+event ID 1001) as D-08 messages.
+
+| Options class | Validation invariants |
+|---|---|
+| `PasswordChangeOptions` | `UseAutomaticContext=false` ⇒ `LdapHostnames` non-empty; `LdapPort` in `1..65535`. D-08 suffix with installer remediation hint on every failure. |
+| `WebSettings` | Type-only schema checks. The `UseDebugProvider=true` ⇒ `Development` environment guard stays inline in `Program.cs` (cannot access `IHostEnvironment` from within `IValidateOptions<T>`). |
+| `SmtpSettings` | When `Host` is non-empty: `Port` in `1..65535`; `FromAddress` contains `@`; `Username` and `Password` are both set or both empty (partial credentials rejected). |
+| `SiemSettings` | When `Syslog.Enabled=true`: `Host` non-empty, `Port` in `1..65535`, `Protocol` ∈ {`Udp`, `Tcp`}. When `AlertEmail.Enabled=true`: at least one recipient, each containing `@`. `AlertOnEvents` entries must map to valid `SiemEventType` enum members. |
+| `EmailNotificationSettings` | When `Enabled=true`: `SmtpSettings.Host` must be set upstream (cross-section check in `Program.cs`). |
+| `PasswordExpiryNotificationSettings` | When `Enabled=true`: `DaysBeforeExpiry >= 1`; `NotificationTimeUtc` matches `^\d{2}:\d{2}$`; `PassResetUrl` starts with `https://`. |
+| `ClientSettings` | When `Recaptcha.Enabled=true`: `SiteKey` and `PrivateKey` both non-empty; `MinimumScore` in `[0.0, 1.0]`. |
+
+> **Secret redaction:** Validation failures NEVER echo secret values. Password, PrivateKey,
+> LDAP bind password, and SMTP password fields always surface as `(got "<redacted>")` in the
+> Event Log and in any exception message.
+
+---
+
 ## Serilog (file logging)
 
 The default configuration writes to `%SystemDrive%\inetpub\logs\PassReset\passreset-YYYYMMDD.log` (IIS convention, outside wwwroot so files are never web-accessible). The installer creates this folder and grants `Modify` permission to the app pool identity.
