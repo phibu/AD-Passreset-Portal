@@ -17,7 +17,7 @@
 
 Source: 21 GitHub issues (#19–#39) opened 2026-04-16. Must ship before v2.0 work begins.
 
-- [ ] **Phase 7: Installer & Deployment Fixes** — STAB-001..006 (gh#19, #20, #21, #23, #36, #39)
+- [x] **Phase 7: Installer & Deployment Fixes** — STAB-001..006 (gh#19, #20, #21, #23, #36, #39) ✓ 2026-04-16 (human UAT pending)
 - [ ] **Phase 8: Configuration Schema & Sync** — STAB-007..012 (gh#22, #24, #25, #26, #27, #37)
 - [ ] **Phase 9: Security Hardening** — STAB-013..017 (gh#28, #29, #30, #32, #33)
 - [ ] **Phase 10: Operational Readiness** — STAB-018..021 (gh#31, #34, #35, #38)
@@ -43,7 +43,8 @@ Source: 21 GitHub issues (#19–#39) opened 2026-04-16. Must ship before v2.0 wo
   4. Two consecutive password changes for the same user produce a clear UI error (mapped error code, no `UnauthorizedAccessException`) (gh#36)
   5. `Uninstall-PassReset.ps1` parses cleanly and removes IIS site + AppPool, with `-KeepFiles` honored (gh#39)
   6. `Install-PassReset.ps1` detects missing IIS roles/.NET 10 hosting bundle and offers interactive install (gh#21)
-**Plans**: TBD
+**Plans**: 07-01 (STAB-005 uninstaller parser), 07-02 (STAB-004 consecutive-change pre-check), 07-03 (STAB-001 port-80 + STAB-006 DISM auto-install), 07-04 (STAB-002 reconfigure + STAB-003 AppPool read)
+**Status**: Complete 2026-04-16 — 6/6 code-level must-haves verified; operator runtime UAT persisted to 07-01/07-03/07-04 HUMAN-UAT.md
 
 ### Phase 8: Configuration Schema & Sync
 **Goal**: `appsettings.Production.json` is governed by an authoritative schema, validated at startup, and safely synced on upgrade without losing operator overrides

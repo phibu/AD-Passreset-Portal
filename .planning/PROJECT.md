@@ -45,6 +45,12 @@ A reliable, secure, self-service password reset portal that fits into corporate 
 - ✓ Client settings flow: server → `GET /api/password` → `useSettings()` hook (single source) — existing
 - ✓ Dark mode via `prefers-color-scheme`; MUI theme with teal primary (`#0b6366`) — existing
 - ✓ PowerShell installer with config preservation + rollback (hardened in v1.2.2) — existing
+- ✓ Uninstall-PassReset.ps1 parses on PS 5.1 + 7.x (UTF-8 BOM + ASCII dividers) — Phase 7 (STAB-005, gh#39) 2026-04-16
+- ✓ Install-PassReset.ps1 port-80 conflict detection + reachable URL announce — Phase 7 (STAB-001, gh#19) 2026-04-16
+- ✓ Install-PassReset.ps1 same-version reconfigure branch (no "upgrade" wording, file mirror skipped) — Phase 7 (STAB-002, gh#20) 2026-04-16
+- ✓ Install-PassReset.ps1 AppPool identity read via Get-WebConfigurationProperty (fixes PS 7.x regression) — Phase 7 (STAB-003, gh#23) 2026-04-16
+- ✓ Install-PassReset.ps1 single-DISM-prompt IIS features + clean exit on missing Hosting Bundle — Phase 7 (STAB-006, gh#21) 2026-04-16
+- ✓ PasswordChangeProvider.PreCheckMinPwdAge: consecutive-change pre-check → PasswordTooRecentlyChanged (19) — Phase 7 (STAB-004, gh#36) 2026-04-16
 
 ### Active (v1.2.3 — Hotfix milestone, P1)
 
@@ -64,7 +70,7 @@ A reliable, secure, self-service password reset portal that fits into corporate 
 
 Triage of 21 GitHub issues opened 2026-04-16 against v1.3.2. Must ship before v2.0 work begins. See REQUIREMENTS.md STAB-001..021 for full list.
 
-- [ ] **Phase 7** — Installer & Deployment Fixes (STAB-001..006): port 80 conflict, same-version prompt, AppPool identity, double-change crash, broken Uninstall script, dependency detection
+- [x] **Phase 7** — Installer & Deployment Fixes (STAB-001..006): port 80 conflict, same-version prompt, AppPool identity, double-change crash, broken Uninstall script, dependency detection **✓ 2026-04-16** (code-level verified; operator UAT for STAB-001/002/003/005/006 persisted to HUMAN-UAT files)
 - [ ] **Phase 8** — Configuration Schema & Sync (STAB-007..012): JSON comments, schema manifest, pre-flight validation, config sync on upgrade, drift-check fix
 - [ ] **Phase 9** — Security Hardening (STAB-013..017): account enumeration, rate-limit + reCAPTCHA tests, audit events, HTTPS/HSTS enforcement, env-var secrets
 - [ ] **Phase 10** — Operational Readiness (STAB-018..021): /health dependency checks, post-deploy verification, CI security checks, AD policy display
@@ -112,4 +118,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-14 after initialization (brownfield, v1.2.2 baseline)*
+*Last updated: 2026-04-16 — Phase 7 (Installer & Deployment Fixes) complete; STAB-001..006 implemented for v1.4.0; operator UAT persisted.*
