@@ -50,9 +50,17 @@ internal sealed class SiemService : ISiemService, IDisposable
 
     public void Dispose()
     {
-        _tcpStream?.Dispose();
-        _tcpClient?.Dispose();
-        _udpClient?.Dispose();
+        // WR-04: Take _syslogLock so Dispose cannot race with an in-flight SendTcp/SendUdp
+        // on another thread. Null the fields after disposal so any subsequent Send call
+        // rebuilds (or fails within its existing try/catch) instead of touching a disposed
+        // socket. Runs once at app shutdown; contention window is microseconds — no deadlock
+        // potential since nothing called under this lock re-enters Dispose.
+        lock (_syslogLock)
+        {
+            _tcpStream?.Dispose(); _tcpStream = null;
+            _tcpClient?.Dispose(); _tcpClient = null;
+            _udpClient?.Dispose(); _udpClient = null;
+        }
     }
 
     /// <inheritdoc />
