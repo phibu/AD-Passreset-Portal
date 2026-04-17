@@ -81,7 +81,12 @@ Source: 21 GitHub issues (#19–#39) opened 2026-04-16. Must ship before v2.0 wo
   3. Structured audit events cover attempts, failures, rate-limit blocks, successes — with strict secret redaction (gh#30)
   4. HTTPS-first behavior: HTTP→HTTPS redirect, correct HSTS, no accidental plain-HTTP IIS bindings (gh#32)
   5. SMTP/LDAP/reCAPTCHA secrets can be sourced from env vars (or .NET user-secrets in dev) instead of plaintext (gh#33) — stepping stone to V2-003
-**Plans**: TBD
+**Plans**: 5 plans
+  - [ ] 09-01-PLAN.md — STAB-013 generic error mapping (IHostEnvironment gate + Production collapse tests)
+  - [ ] 09-02-PLAN.md — STAB-014 rate-limit + reCAPTCHA integration tests (4 scenarios via WebApplicationFactory)
+  - [ ] 09-03-PLAN.md — STAB-015 structured audit events (AuditEvent DTO + RFC 5424 SD-ELEMENT + SdId config)
+  - [ ] 09-04-PLAN.md — STAB-016 HSTS regression test + installer Test-HttpsBinding helper
+  - [ ] 09-05-PLAN.md — STAB-017 env-var secrets (binding precedence test + 6 doc files + CHANGELOG)
 
 ### Phase 10: Operational Readiness
 **Goal**: Operators can verify a deployment is healthy from `/health` alone, installs self-verify before declaring success, CI catches dependency vulnerabilities, and users see effective password policy
