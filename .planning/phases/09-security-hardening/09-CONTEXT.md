@@ -48,6 +48,10 @@ Production deployments of PassReset resist account enumeration, enforce rate-lim
 - Specific wording of the installer `Write-Warn` message for binding check.
 - Whether Program.cs gains a helper method for the IsProduction error collapse, or it's inlined at the controller's error-return path.
 
+### Post-Research Locked Decisions (2026-04-17)
+- **D-19 (STAB-014c):** reCAPTCHA-enabled test scenario hits real `https://www.google.com/recaptcha/api/siteverify` with a deliberately invalid token. No `IRecaptchaVerifier` abstraction this phase — scope creep beyond D-07. CI must allow outbound https to google.com.
+- **D-20 (STAB-015):** Structured-data SD-ID is configurable via new `SiemSettings.SdId` (default `"passreset@32473"` — RFC 5424 reserved-for-documentation PEN). Operators who register their own IANA PEN can override in appsettings. Adds one config key + one validator rule + one test.
+
 </decisions>
 
 <canonical_refs>
