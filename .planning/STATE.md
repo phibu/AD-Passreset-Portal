@@ -3,40 +3,40 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Multi-OS PoC
 status: executing
-last_updated: "2026-04-17T06:13:03.862Z"
+last_updated: "2026-04-17T12:30:00.000Z"
 progress:
   total_phases: 7
-  completed_phases: 2
-  total_plans: 12
-  completed_plans: 12
+  completed_phases: 3
+  total_plans: 17
+  completed_plans: 17
   percent: 100
 ---
 
 # PassReset — Project State
 
-**Last updated:** 2026-04-16
+**Last updated:** 2026-04-17
 
 ## Project Reference
 
 - **Project:** PassReset (self-service AD password change portal)
 - **Core value:** Reliable, secure, self-service password change that fits corporate AD environments without bespoke deployment engineering
 - **Baseline version:** v1.3.2
-- **Current milestone:** v1.4.0 (Stabilization) — queued
+- **Current milestone:** v1.4.0 (Stabilization) — active
 - **Queued milestone:** v2.0.0 (Platform evolution)
 - **Milestone chain:** v1.2.3 ✅ → v1.3.0 ✅ → v1.3.1 ✅ → v1.3.2 ✅ → v1.4.0 (active) → v2.0.0 (queued)
-- **Current focus:** Phase 08 — config-schema-sync
+- **Current focus:** Phase 09 — security-hardening ✅ complete (human-verify pending)
 
 ## Current Position
 
-Phase: 08 (config-schema-sync) — EXECUTING
-Plan: 4 of 8
-Milestone: v1.4.0 — NOT STARTED
+Phase: 09 (security-hardening) — COMPLETE (awaiting human-verify on 09-05 docs)
+Plan: 5 of 5 complete
+Milestone: v1.4.0 — in progress
 Next: Phase 7 (Installer & Deployment Fixes) — needs `/gsd-discuss-phase 7` then `/gsd-plan-phase 7`
 
-- **Phase:** 08
+- **Phase:** 09 ✅ (human-verify checkpoint open on 09-05 docs)
 - **Next:** `/gsd-discuss-phase 7` to shape the installer fix approach
-- **Status:** Ready to execute
-- **Progress:** [█████████░] 92%
+- **Status:** Phase 9 commits landed; operator should review doc wording in 09-05 artifacts
+- **Progress:** [██████████] 100% (Wave 1 + Wave 2)
 
 ## Milestone Map
 
@@ -99,3 +99,4 @@ Next: Phase 7 (Installer & Deployment Fixes) — needs `/gsd-discuss-phase 7` th
 - **This session (2026-04-16):** 21 GitHub issues (#19–#39) opened against v1.3.2. Inserted v1.4.0 stabilization milestone before v2.0. Created STAB-001..021 requirements, phases 7–10, renumbered v2.0 phases 4/5/6 → 11/12/13.
 - **Next session:** `/gsd-discuss-phase 7` to start Installer & Deployment Fixes. Phases 7/8/9 are parallelizable.
 - **2026-04-16 (later):** Executed Phase 08-01 — pure-JSON production template, authoritative `appsettings.schema.json` (Draft 2020-12), csproj Content wiring. Commits: e81b839, fcd704b, b9deb9d. STAB-007 + STAB-008 ✓.
+- **2026-04-17:** Executed Phase 09 (security-hardening) inline after a failed parallel-wave dispatch left 4 plans half-committed. Reconciled and finished all 5 plans sequentially. Full test suite: 164/164 green (up from 161). Commits landed for STAB-013 (account-enum collapse), STAB-014 (rate-limit + recaptcha tests), STAB-015 (AuditEvent + RFC5424 SD-ID), STAB-016 (HSTS IOptions resolution + tests), STAB-017 (env-var + user-secrets docs + regression test). CHANGELOG `[Unreleased]` now reflects STAB-013..017. Operator human-verify pending on 09-05 doc wording. See `tasks/lessons.md` 2026-04-17 entries for the parallel-execution fallout.
