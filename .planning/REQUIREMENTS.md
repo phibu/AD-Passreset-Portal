@@ -42,7 +42,7 @@ Source: 21 open GitHub issues (#19–#39) opened 2026-04-16. These must ship bef
 
 ### Operational Readiness (Phase 10)
 
-- [ ] **STAB-018** (gh#31): `/api/health` reports readiness of AD, SMTP, and the password-expiry background service without leaking secrets — distinct healthy/degraded/unhealthy states per dependency.
+- [x] **STAB-018** (gh#31): `/api/health` reports readiness of AD, SMTP, and the password-expiry background service without leaking secrets — distinct healthy/degraded/unhealthy states per dependency.
 - [ ] **STAB-019** (gh#34): `Install-PassReset.ps1` post-deploy verification calls `/api/health` and `GET /api/password`; fails the install with a clear message when either endpoint does not respond as expected.
 - [ ] **STAB-020** (gh#35): CI runs build + minimal security checks (`npm audit`, `dotnet list package --vulnerable`) on every push and PR; fails on high-severity vulnerabilities with a documented exception process.
 - [ ] **STAB-021** (gh#38): Display the effective AD password policy (or a clear summary) to the user before they attempt a change — reduces failed attempts and confusion. *(UX continuation of FEAT-002.)*

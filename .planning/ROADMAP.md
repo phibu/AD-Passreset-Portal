@@ -100,7 +100,7 @@ Source: 21 GitHub issues (#19–#39) opened 2026-04-16. Must ship before v2.0 wo
   3. CI runs `npm audit` + `dotnet list package --vulnerable` on every push/PR; fails on high-severity findings (gh#35)
   4. Effective AD password policy (or clear summary) is displayed in the UI before the user attempts a change (gh#38)
 **Plans**: 4 plans (sequential inline execution per D-20)
-  - [ ] 10-01-PLAN.md — STAB-018 /api/health enrichment (nested AD/SMTP/ExpiryService checks + ConnectAsync timeouts)
+  - [x] 10-01-PLAN.md — STAB-018 /api/health enrichment (nested AD/SMTP/ExpiryService checks + ConnectAsync timeouts)
   - [ ] 10-02-PLAN.md — STAB-019 Installer post-deploy /api/health + /api/password verification + -SkipHealthCheck
   - [ ] 10-03-PLAN.md — STAB-020 CI security-audit job (npm audit + dotnet --vulnerable) + allowlist
   - [ ] 10-04-PLAN.md — STAB-021 password policy panel visible above Username by default
@@ -174,7 +174,7 @@ Source: 21 GitHub issues (#19–#39) opened 2026-04-16. Must ship before v2.0 wo
 | 7. Installer & Deployment Fixes | v1.4.0 | 0/0 | Not started | — |
 | 8. Configuration Schema & Sync | v1.4.0 | 0/8 | Planned | — |
 | 9. Security Hardening | v1.4.0 | 0/0 | Not started | — |
-| 10. Operational Readiness | v1.4.0 | 0/4 | Planned | — |
+| 10. Operational Readiness | v1.4.0 | 1/4 | In Progress|  |
 | 11. v2.0 Multi-OS PoC | v2.0.0 | 0/0 | Queued | — |
 | 12. v2.0 Local Password DB | v2.0.0 | 0/0 | Queued | — |
 | 13. v2.0 Secure Config Storage | v2.0.0 | 0/0 | Queued | — |
