@@ -151,6 +151,8 @@ try
         builder.Services.AddSingleton<ILockoutDiagnostics>(sp =>
             sp.GetRequiredService<LockoutPasswordChangeProvider>());
         builder.Services.AddSingleton<IEmailService, NoOpEmailService>();
+        // Expiry service is never wired in debug mode — diagnostics report "not-enabled".
+        builder.Services.AddSingleton<IExpiryServiceDiagnostics>(new NullExpiryServiceDiagnostics());
     }
     else
     {
@@ -167,7 +169,18 @@ try
         builder.Services.AddTransient<IEmailService, SmtpEmailService>();
 
         if (expirySettings.Enabled)
-            builder.Services.AddHostedService<PasswordExpiryNotificationService>();
+        {
+            // Register as singleton so both the hosted service runtime and the health
+            // controller's IExpiryServiceDiagnostics dependency resolve the SAME instance.
+            builder.Services.AddSingleton<PasswordExpiryNotificationService>();
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<PasswordExpiryNotificationService>());
+            builder.Services.AddSingleton<IExpiryServiceDiagnostics>(sp =>
+                sp.GetRequiredService<PasswordExpiryNotificationService>());
+        }
+        else
+        {
+            builder.Services.AddSingleton<IExpiryServiceDiagnostics>(new NullExpiryServiceDiagnostics());
+        }
     }
 
     // ─── SIEM service ─────────────────────────────────────────────────────────────
