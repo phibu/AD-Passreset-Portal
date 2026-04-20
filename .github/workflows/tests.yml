@@ -54,3 +54,108 @@ jobs:
           name: frontend-coverage
           path: src/PassReset.Web/ClientApp/coverage/
           retention-days: 30
+
+  security-audit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5.2.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6.3.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/PassReset.Web/ClientApp/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: src/PassReset.Web/ClientApp
+        run: npm ci
+
+      - name: Restore NuGet packages
+        run: dotnet restore src/PassReset.sln
+
+      - name: npm audit (high+critical gate)
+        working-directory: src/PassReset.Web/ClientApp
+        shell: pwsh
+        run: |
+          $raw    = (npm audit --json 2>&1 | Out-String)
+          $result = $raw | ConvertFrom-Json
+          $allowPath = "${{ github.workspace }}/deploy/security-allowlist.json"
+          $allowlist = (Get-Content $allowPath -Raw | ConvertFrom-Json).advisories
+          $today     = [datetime]::UtcNow.ToString("yyyy-MM-dd")
+          $validIds  = $allowlist |
+                       Where-Object { $_.scope -eq 'npm' -and $_.expires -gt $today } |
+                       Select-Object -ExpandProperty id
+          $unfixed = @()
+          if ($result.vulnerabilities) {
+              $result.vulnerabilities.PSObject.Properties.Value |
+                  Where-Object { $_.severity -in @('high','critical') } |
+                  ForEach-Object {
+                      $advisoryIds = @()
+                      foreach ($v in $_.via) {
+                          if ($v -is [psobject] -and $v.url) {
+                              $advisoryIds += ($v.url -replace '.*/','')
+                          }
+                      }
+                      $unsuppressed = $advisoryIds | Where-Object { $_ -notin $validIds }
+                      if ($unsuppressed.Count -gt 0 -or $advisoryIds.Count -eq 0) {
+                          $unfixed += $_
+                      }
+                  }
+          }
+          $moderate = 0
+          if ($result.metadata.vulnerabilities) {
+              $moderate = [int]$result.metadata.vulnerabilities.moderate + [int]$result.metadata.vulnerabilities.low
+          }
+          if ($moderate -gt 0) { Write-Warning "npm audit: $moderate moderate/low advisories (not gated)" }
+          if ($unfixed.Count -gt 0) {
+              $unfixed | ForEach-Object { Write-Warning "Unfixed: $($_.name) [$($_.severity)]" }
+              Write-Error "npm audit: unfixed high/critical advisories found (STAB-020 gate)"
+              exit 1
+          }
+          Write-Host "npm audit: no unfixed high/critical advisories"
+
+      - name: dotnet audit (High+Critical gate)
+        shell: pwsh
+        run: |
+          $output = (dotnet list src/PassReset.sln package --vulnerable --include-transitive 2>&1) | Out-String
+          $allowPath = "${{ github.workspace }}/deploy/security-allowlist.json"
+          $allowlist = (Get-Content $allowPath -Raw | ConvertFrom-Json).advisories
+          $today     = [datetime]::UtcNow.ToString("yyyy-MM-dd")
+          $validIds  = $allowlist |
+                       Where-Object { $_.scope -eq 'nuget' -and $_.expires -gt $today } |
+                       Select-Object -ExpandProperty id
+          $lines     = $output -split "`r?`n"
+          $highLines = $lines | Where-Object { $_ -match '(?i)\b(High|Critical)\b' }
+          $modLines  = $lines | Where-Object { $_ -match '(?i)\b(Moderate|Low)\b' -and $_ -notmatch '(?i)\b(High|Critical)\b' }
+          if ($modLines) {
+              $modLines | ForEach-Object { Write-Warning $_ }
+          }
+          $unfixed = @()
+          foreach ($line in $highLines) {
+              $match = [regex]::Match($line, 'GHSA-[a-z0-9\-]+')
+              $id    = if ($match.Success) { $match.Value } else { $null }
+              if (-not $id -or $id -notin $validIds) {
+                  $unfixed += $line
+              }
+          }
+          if ($unfixed.Count -gt 0) {
+              $unfixed | ForEach-Object { Write-Warning $_ }
+              Write-Error "dotnet audit: unfixed High/Critical advisories found (STAB-020 gate)"
+              exit 1
+          }
+          Write-Host "dotnet audit: no unfixed High/Critical advisories"
+
+      - name: Post audit summary
+        if: always()
+        shell: pwsh
+        run: |
+          "## Security Audit Results" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "Scanned: npm (Node 22 / npm 10+) + dotnet NuGet packages" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "Gate: high + critical only; moderate/low printed as warnings" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "Allowlist: deploy/security-allowlist.json (entries expire <=90 days)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
