@@ -549,12 +549,15 @@ if (-not (Test-Path $brandPath)) {
 # exception formatter renders the missing drive name as "ISS", which looks like
 # a typo but is actually Windows truncation of the word "IIS:" in its display).
 try {
-    # -SkipEditionCheck imports the Desktop-edition WebAdministration module
-    # directly into PS 7 (Core) instead of routing through the WinPSCompat
-    # remoting session. Without it, all IIS:\ drive operations round-trip
-    # through a Windows PowerShell child process, producing deserialized
-    # proxy objects and a noisy warning on every install.
-    Import-Module WebAdministration -SkipEditionCheck -ErrorAction Stop
+    # WebAdministration is a legacy PSSnapIn-based module that only exists in
+    # Windows PowerShell (Desktop edition). PS 7 can't load it natively
+    # (PSSnapIn types were removed from PS Core) — importing always goes
+    # through the WinPSCompat remoting session. That's fine for this
+    # installer's IIS:\ drive usage, but PS 7 prints a verbose warning about
+    # deserialized objects on every import. Silence it; the round-tripped
+    # proxy objects are sufficient for Set-ItemProperty / Get-ItemProperty /
+    # Test-Path / New-WebAppPool / New-Website, which is all we use.
+    Import-Module WebAdministration -WarningAction SilentlyContinue -ErrorAction Stop
 } catch {
     Abort @"
 Failed to load the WebAdministration PowerShell module — the IIS:\ drive
