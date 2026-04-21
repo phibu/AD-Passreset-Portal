@@ -178,9 +178,18 @@ jobs:
           - 389:389
           - 636:636
         env:
-          DOMAIN: SAMDOM
+          # nowsci expects DOMAIN to be a dotted FQDN realm (NOT a short NetBIOS name —
+          # samba-tool refuses realm==netbios). Must match the BaseDn components our
+          # integration test config uses (DC=samdom,DC=example,DC=com).
+          DOMAIN: SAMDOM.EXAMPLE.COM
           DOMAINPASS: ${{ secrets.SAMBA_DOMAIN_PASSWORD }}
           DNSFORWARDER: 8.8.8.8
+          # Phase 11 smoke-test ergonomics: strip AD's default complexity + min-pwd-age
+          # so short seeded passwords (OldPass1!/NewPass1!) aren't rejected.
+          NOCOMPLEXITY: "true"
+          # Self-signed cert isn't in the runner's trust store; INSECURELDAP lets the
+          # container accept plain LDAP on 389 so the test client doesn't need cert work.
+          INSECURELDAP: "true"
         # SYS_ADMIN + NET_ADMIN: nowsci's first-boot samba_provision needs elevated perms.
         # health-retries bumped to 20 because nowsci's first-run provisioning takes ~30-60s
         # (vs diginc's ~10s).
@@ -194,6 +203,10 @@ jobs:
     env:
       PASSRESET_INTEGRATION_LDAP: "1"
       PASSRESET_PasswordChangeOptions__ServiceAccountPassword: ${{ secrets.SAMBA_DOMAIN_PASSWORD }}
+      # Override JSON config to match what the nowsci container exposes with INSECURELDAP=true
+      # (plain LDAP on 389 — no cert-trust dance in CI).
+      PASSRESET_PasswordChangeOptions__LdapPort: "389"
+      PASSRESET_PasswordChangeOptions__LdapUseSsl: "false"
       PASSRESET_TEST_USERNAME: "testuser"
       PASSRESET_TEST_OLD_PASSWORD: ${{ secrets.SAMBA_TEST_OLD_PASSWORD }}
       PASSRESET_TEST_NEW_PASSWORD: ${{ secrets.SAMBA_TEST_NEW_PASSWORD }}
@@ -205,10 +218,10 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Wait for Samba DC LDAPS port
+      - name: Wait for Samba DC LDAP port
         run: |
           for i in {1..30}; do
-            nc -z localhost 636 && break
+            nc -z localhost 389 && break
             sleep 2
           done
 
