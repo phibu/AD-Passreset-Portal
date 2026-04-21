@@ -107,17 +107,17 @@ public class PwnedPasswordCheckerTests
     }
 
     [Fact]
-    public async Task Disabled_ReturnsNullWithoutHttpCall()
+    public async Task Disabled_ReturnsFalseWithoutHttpCall()
     {
         // When constructed with disabled: true, IsPwnedPasswordAsync must short-circuit
-        // to null (no HIBP breach hit) without issuing any HTTP request.
+        // to false (not pwned) without issuing any HTTP request.
         using var handler = new RecordingHandler();
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.pwnedpasswords.com/") };
         var sut = new PwnedPasswordChecker(client, disabled: true);
 
         var result = await sut.IsPwnedPasswordAsync("irrelevant");
 
-        Assert.Null(result);
+        Assert.Equal(false, result);
         Assert.Equal(0, handler.CallCount);
     }
 

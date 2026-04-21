@@ -82,8 +82,10 @@ public sealed class PwnedPasswordChecker : IPwnedPasswordChecker
     {
         if (_disabled)
         {
-            // Disabled by configuration (local HIBP corpus is authoritative). Short-circuit.
-            return null;
+            // Disabled by configuration (local HIBP corpus is authoritative).
+            // Treat as "not pwned" (false) — NOT ambiguous (null) — so callers that
+            // fail-closed on null still allow the change.
+            return false;
         }
 
         var hash = ComputeSha1Hex(plaintext).ToUpperInvariant();
