@@ -6,8 +6,17 @@ namespace PassReset.Tests.Fakes;
 /// <summary>
 /// Scripted <see cref="ILdapSession"/> fake for unit + contract tests.
 /// Callers register <see cref="SearchResponse"/>/<see cref="ModifyResponse"/> values
-/// (or exceptions to throw) keyed by operation type + filter substring.
+/// (or exceptions to throw) keyed by operation type + filter/DN substring.
+/// Rules are matched in registration order; first match wins. Not thread-safe —
+/// single-threaded tests only.
 /// </summary>
+/// <remarks>
+/// Call counts increment on entry (before rule matching), so they include calls
+/// that ultimately throw. <see cref="RootDse"/> is a settable property; assign
+/// <c>null</c> to simulate a silent root-DSE failure (the real <see cref="LdapSession"/>
+/// catches <see cref="LdapException"/>/<see cref="DirectoryOperationException"/>
+/// internally).
+/// </remarks>
 public sealed class FakeLdapSession : ILdapSession
 {
     private readonly List<SearchRule> _searchRules = new();
@@ -35,6 +44,7 @@ public sealed class FakeLdapSession : ILdapSession
 
     public FakeLdapSession OnSearchThrow(string filterContains, Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(ex);
         _searchRules.Add(new SearchRule(filterContains, null, ex));
         return this;
     }
@@ -47,6 +57,7 @@ public sealed class FakeLdapSession : ILdapSession
 
     public FakeLdapSession OnModifyThrow(string dnContains, Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(ex);
         _modifyRules.Add(new ModifyRule(dnContains, null, ex));
         return this;
     }
@@ -54,16 +65,18 @@ public sealed class FakeLdapSession : ILdapSession
     public SearchResponse Search(SearchRequest request)
     {
         SearchCallCount++;
+        // Filter can be string or SearchFilter; ToString() yields the LDAP filter text for both.
+        var filterText = request.Filter?.ToString() ?? string.Empty;
         foreach (var rule in _searchRules)
         {
-            if (request.Filter is string f && f.Contains(rule.FilterContains, StringComparison.OrdinalIgnoreCase))
+            if (filterText.Contains(rule.FilterContains, StringComparison.OrdinalIgnoreCase))
             {
                 if (rule.Throw is not null) throw rule.Throw;
                 return rule.Response!;
             }
         }
         throw new InvalidOperationException(
-            $"FakeLdapSession: no matching SearchRule for filter='{request.Filter}'. Register one via OnSearch(...).");
+            $"FakeLdapSession: no matching SearchRule for filter='{filterText}'. Register one via OnSearch(...).");
     }
 
     public ModifyResponse Modify(ModifyRequest request)
