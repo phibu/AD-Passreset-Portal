@@ -11,6 +11,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Added
 - **`IAdConnectivityProbe`** — narrow AD-reachability seam for the health endpoint. `DomainJoinedProbe` (Windows, in `PassReset.PasswordProvider`) + `LdapTcpProbe` (cross-platform, in `PassReset.PasswordProvider.Ldap`) implementations. Replaces the inline `PrincipalContext` / `TcpClient` logic in `HealthController`. *(web, provider, provider-ldap)*
 - **`IPrincipalContextFactory`** — Windows-only seam over `PrincipalContext` + `UserPrincipal.FindByIdentity`. `PasswordChangeProvider` now depends on the interface instead of the BCL types directly. Lays groundwork for future cross-provider contract-test parity. *(provider)*
+- **Local password policy** ([V2-002]): operator-managed offline password policy layer.
+  A new `LocalPolicyPasswordChangeProvider` decorator sits outermost in the password-change
+  chain and enforces two optional checks before any AD round-trip:
+  - Banned-words list: plaintext file, case-insensitive substring match
+  - Local HIBP SHA-1 corpus: air-gapped alternative to the remote HIBP API
+  When `LocalPwnedPasswordsPath` is configured, remote HIBP API calls are disabled
+  automatically. See `docs/LocalPasswordPolicy-Setup.md` for operator setup.
+
+### Configuration
+- `PasswordChangeOptions.LocalPolicy.BannedWordsPath` (optional, null default) — path to banned-words file
+- `PasswordChangeOptions.LocalPolicy.LocalPwnedPasswordsPath` (optional, null default) — path to HIBP corpus directory
+- `PasswordChangeOptions.LocalPolicy.MinBannedTermLength` (default: 4) — minimum banned-term length
+
+### API
+- New `ApiErrorCode` values: `BannedWord` (20), `LocallyKnownPwned` (21). Frontend messages
+  are intentionally identical ("This password is not allowed by local policy.") to avoid
+  leaking which list matched.
 
 ### Changed
 - **`HealthController` no longer references `System.DirectoryServices.AccountManagement`.** AD reachability is delegated to the DI-injected `IAdConnectivityProbe`. Wiring selects the right implementation by `ProviderMode`. *(web)*
