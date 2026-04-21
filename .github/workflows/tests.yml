@@ -240,16 +240,15 @@ jobs:
 
       - name: Seed test user
         env:
-          TEST_USER: ${{ secrets.SAMBA_TEST_OLD_PASSWORD && 'testuser' || '' }}
           TEST_OLD: ${{ secrets.SAMBA_TEST_OLD_PASSWORD }}
         run: |
-          # Explicit --newpassword flag avoids samba-tool's interactive prompt.
-          # Env vars are inlined at step scope (not job scope) to rule out propagation quirks.
+          # samba-tool user create uses positional <username> <password> args.
+          # The --newpassword flag is for 'user setpassword', not 'user create'.
           docker exec ${{ job.services.samba-dc.id }} samba-tool user create \
             testuser \
+            "$TEST_OLD" \
             --given-name=Test \
-            --surname=User \
-            --newpassword="$TEST_OLD"
+            --surname=User
 
       - name: Run LDAP integration tests
         working-directory: src/PassReset.Tests.Integration.Ldap
