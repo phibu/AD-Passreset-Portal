@@ -13,6 +13,7 @@ namespace PassReset.PasswordProvider.Ldap;
 public sealed class LdapSession : ILdapSession
 {
     private readonly LdapConnection _conn;
+    private readonly string _hostname;
     private readonly NetworkCredential _creds;
     private readonly ILogger _logger;
     private readonly IReadOnlySet<string> _trustedThumbprints;
@@ -29,6 +30,7 @@ public sealed class LdapSession : ILdapSession
         ILogger logger)
     {
         _conn = new LdapConnection(new LdapDirectoryIdentifier(hostname, port));
+        _hostname = hostname;
         _conn.SessionOptions.ProtocolVersion = 3;
         _conn.SessionOptions.SecureSocketLayer = useLdaps;
         _conn.AuthType = AuthType.Basic;
@@ -66,9 +68,9 @@ public sealed class LdapSession : ILdapSession
                 var resp = (SearchResponse)_conn.SendRequest(req);
                 _rootDse = resp.Entries.Count > 0 ? resp.Entries[0] : null;
             }
-            catch (LdapException ex)
+            catch (Exception ex) when (ex is LdapException or DirectoryOperationException)
             {
-                _logger.LogWarning(ex, "Root DSE query failed on {Host}", _conn.Directory);
+                _logger.LogWarning(ex, "Root DSE query failed on {Host}", _hostname);
                 _rootDse = null;
             }
             return _rootDse;
@@ -77,14 +79,14 @@ public sealed class LdapSession : ILdapSession
 
     private bool VerifyServerCertificate(LdapConnection connection, X509Certificate certificate)
     {
-        // If the system store already trusts the cert, let it through.
+        using var cert2 = new X509Certificate2(certificate);
+
+        // If the system store already trusts the cert (with offline revocation check), let it through.
         using var chain = new X509Chain();
-        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-        var sysTrusted = chain.Build(new X509Certificate2(certificate));
-        if (sysTrusted) return true;
+        chain.ChainPolicy.RevocationMode = X509RevocationMode.Offline;
+        if (chain.Build(cert2)) return true;
 
         // Otherwise, match against the operator-configured thumbprint allow-list.
-        var cert2 = new X509Certificate2(certificate);
         var sha1 = cert2.Thumbprint ?? string.Empty;
         var sha256 = Convert.ToHexString(cert2.GetCertHash(System.Security.Cryptography.HashAlgorithmName.SHA256));
         var trusted = _trustedThumbprints.Contains(sha1.ToUpperInvariant())
