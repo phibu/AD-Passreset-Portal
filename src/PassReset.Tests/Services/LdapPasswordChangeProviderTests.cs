@@ -62,6 +62,21 @@ public class LdapPasswordChangeProviderTests
         return entry;
     }
 
+    private static ModifyResponse MakeModifyResponse(
+        ResultCode resultCode = ResultCode.Success, string errorMessage = "")
+    {
+        // ModifyResponse has no public parameterless ctor. Use the internal
+        // (string dn, DirectoryControl[] controls, ResultCode result, string message, Uri[] referral) overload,
+        // same pattern as MakeResponse for SearchResponse.
+        var response = (ModifyResponse)Activator.CreateInstance(
+            typeof(ModifyResponse),
+            BindingFlags.NonPublic | BindingFlags.Instance,
+            null,
+            new object?[] { string.Empty, Array.Empty<DirectoryControl>(), resultCode, errorMessage, Array.Empty<Uri>() },
+            null)!;
+        return response;
+    }
+
     [Fact]
     public async Task FindUserDn_SamAccountNameHits_ReturnsDn()
     {
@@ -112,5 +127,39 @@ public class LdapPasswordChangeProviderTests
 
         Assert.Null(dn);
         Assert.Equal(3, fake.SearchCallCount);
+    }
+
+    [Fact]
+    public async Task PerformPasswordChangeAsync_HappyPath_ReturnsNull()
+    {
+        var (sut, fake) = Build();
+        fake.OnSearch(
+            "(sAMAccountName=alice)",
+            MakeResponse(MakeEntry("CN=Alice,OU=Users,DC=corp,DC=example,DC=com")));
+        // ModifyResponse has no public parameterless ctor; use MakeModifyResponse helper.
+        fake.OnModify(
+            "CN=Alice,OU=Users,DC=corp,DC=example,DC=com",
+            MakeModifyResponse(ResultCode.Success));
+
+        var result = await sut.PerformPasswordChangeAsync("alice", "OldPass1!", "NewPass1!");
+
+        Assert.Null(result);
+        Assert.Equal(1, fake.BindCallCount);
+        Assert.Equal(1, fake.ModifyCallCount);
+    }
+
+    [Fact]
+    public async Task PerformPasswordChangeAsync_UserNotFound_ReturnsUserNotFound()
+    {
+        var (sut, fake) = Build();
+        fake.OnSearch("(sAMAccountName=ghost)",     MakeResponse());
+        fake.OnSearch("(userPrincipalName=ghost)",  MakeResponse());
+        fake.OnSearch("(mail=ghost)",               MakeResponse());
+
+        var result = await sut.PerformPasswordChangeAsync("ghost", "any", "new");
+
+        Assert.NotNull(result);
+        Assert.Equal(ApiErrorCode.UserNotFound, result!.ErrorCode);
+        Assert.Equal(0, fake.ModifyCallCount);
     }
 }

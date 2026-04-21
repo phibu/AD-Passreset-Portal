@@ -92,8 +92,108 @@ public sealed class LdapPasswordChangeProvider : IPasswordChangeProvider
             .Replace(")",  @"\29")
             .Replace("\0", @"\00");
 
-    public Task<ApiErrorItem?> PerformPasswordChangeAsync(string username, string currentPassword, string newPassword)
-        => throw new NotImplementedException();
+    public async Task<ApiErrorItem?> PerformPasswordChangeAsync(string username, string currentPassword, string newPassword)
+    {
+        using var session = _sessionFactory();
+
+        try
+        {
+            session.Bind();
+        }
+        catch (LdapException ex)
+        {
+            _logger.LogError(ex, "LDAP bind failed as service account");
+            return new ApiErrorItem(ApiErrorCode.Generic,
+                "Directory bind failed; contact your administrator.");
+        }
+
+        var userDn = await FindUserDnAsync(session, username);
+        if (userDn is null)
+        {
+            _logger.LogInformation("User not found: {Username}", username);
+            return new ApiErrorItem(ApiErrorCode.UserNotFound,
+                "User not found in directory.") { FieldName = nameof(username) };
+        }
+
+        var opts = _options.Value;
+        try
+        {
+            var modifyRequest = BuildChangePasswordRequest(userDn, currentPassword, newPassword, opts.AllowSetPasswordFallback);
+            var response = session.Modify(modifyRequest);
+
+            if (response.ResultCode != ResultCode.Success)
+            {
+                var extended = LdapErrorMapping.ExtractExtendedError(response.ErrorMessage);
+                var mapped = LdapErrorMapping.Map(response.ResultCode, extended);
+                _logger.LogWarning(
+                    "ModifyResponse rejected: ResultCode={ResultCode} extendedError=0x{Extended:X8} mapped={Mapped}",
+                    response.ResultCode, extended, mapped);
+                return new ApiErrorItem(mapped, MapperMessageFor(mapped));
+            }
+
+            return null;
+        }
+        catch (DirectoryOperationException ex)
+        {
+            var extended = LdapErrorMapping.ExtractExtendedError(ex.Response?.ErrorMessage);
+            var mapped = LdapErrorMapping.Map(ex.Response?.ResultCode ?? ResultCode.OperationsError, extended);
+            _logger.LogWarning(ex,
+                "DirectoryOperationException on Modify: ResultCode={ResultCode} extendedError=0x{Extended:X8} mapped={Mapped}",
+                ex.Response?.ResultCode, extended, mapped);
+            return new ApiErrorItem(mapped, MapperMessageFor(mapped));
+        }
+        catch (LdapException ex)
+        {
+            _logger.LogError(ex, "Unexpected LDAP exception on password change");
+            return new ApiErrorItem(ApiErrorCode.Generic, "Unexpected directory error.");
+        }
+    }
+
+    private static ModifyRequest BuildChangePasswordRequest(
+        string userDn, string current, string next, bool allowSetFallback)
+    {
+        // AD atomic change-password pattern: single ModifyRequest with Delete(old) + Add(new)
+        // on unicodePwd. The value must be UTF-16LE-encoded and wrapped in literal quote chars.
+        var oldBytes = System.Text.Encoding.Unicode.GetBytes($"\"{current}\"");
+        var newBytes = System.Text.Encoding.Unicode.GetBytes($"\"{next}\"");
+
+        if (allowSetFallback)
+        {
+            // Replace semantic: SetPassword equivalent — bypasses history. Opt-in only.
+            var replace = new DirectoryAttributeModification
+            {
+                Operation = DirectoryAttributeOperation.Replace,
+                Name = LdapAttributeNames.UnicodePwd,
+            };
+            replace.Add(newBytes);
+            return new ModifyRequest(userDn, replace);
+        }
+
+        var del = new DirectoryAttributeModification
+        {
+            Operation = DirectoryAttributeOperation.Delete,
+            Name = LdapAttributeNames.UnicodePwd,
+        };
+        del.Add(oldBytes);
+        var add = new DirectoryAttributeModification
+        {
+            Operation = DirectoryAttributeOperation.Add,
+            Name = LdapAttributeNames.UnicodePwd,
+        };
+        add.Add(newBytes);
+        return new ModifyRequest(userDn, del, add);
+    }
+
+    private static string MapperMessageFor(ApiErrorCode code) => code switch
+    {
+        ApiErrorCode.InvalidCredentials          => "Current password is incorrect.",
+        ApiErrorCode.UserNotFound                => "User not found in directory.",
+        ApiErrorCode.ChangeNotPermitted          => "Password change is not permitted for this account.",
+        ApiErrorCode.ComplexPassword             => "The new password does not meet domain complexity requirements.",
+        ApiErrorCode.PortalLockout               => "Account is locked out. Contact your administrator.",
+        ApiErrorCode.PasswordTooRecentlyChanged  => "Password was changed too recently; please wait before trying again.",
+        _                                        => "Unexpected error.",
+    };
 
     public string? GetUserEmail(string username)
         => throw new NotImplementedException();
