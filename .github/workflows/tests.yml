@@ -225,12 +225,31 @@ jobs:
             sleep 2
           done
 
-      - name: Seed test user
+      - name: Verify secret lengths (lengths are not sensitive)
+        env:
+          DOMAINPASS_LEN: ${{ secrets.SAMBA_DOMAIN_PASSWORD }}
+          TESTOLD_LEN: ${{ secrets.SAMBA_TEST_OLD_PASSWORD }}
+          TESTNEW_LEN: ${{ secrets.SAMBA_TEST_NEW_PASSWORD }}
         run: |
+          echo "SAMBA_DOMAIN_PASSWORD length: ${#DOMAINPASS_LEN}"
+          echo "SAMBA_TEST_OLD_PASSWORD length: ${#TESTOLD_LEN}"
+          echo "SAMBA_TEST_NEW_PASSWORD length: ${#TESTNEW_LEN}"
+          if [ -z "$TESTOLD_LEN" ]; then echo "::error::SAMBA_TEST_OLD_PASSWORD is empty"; exit 1; fi
+          if [ -z "$TESTNEW_LEN" ]; then echo "::error::SAMBA_TEST_NEW_PASSWORD is empty"; exit 1; fi
+          if [ -z "$DOMAINPASS_LEN" ]; then echo "::error::SAMBA_DOMAIN_PASSWORD is empty"; exit 1; fi
+
+      - name: Seed test user
+        env:
+          TEST_USER: ${{ secrets.SAMBA_TEST_OLD_PASSWORD && 'testuser' || '' }}
+          TEST_OLD: ${{ secrets.SAMBA_TEST_OLD_PASSWORD }}
+        run: |
+          # Explicit --newpassword flag avoids samba-tool's interactive prompt.
+          # Env vars are inlined at step scope (not job scope) to rule out propagation quirks.
           docker exec ${{ job.services.samba-dc.id }} samba-tool user create \
-            "$PASSRESET_TEST_USERNAME" \
-            "$PASSRESET_TEST_OLD_PASSWORD" \
-            --given-name=Test --surname=User
+            testuser \
+            --given-name=Test \
+            --surname=User \
+            --newpassword="$TEST_OLD"
 
       - name: Run LDAP integration tests
         working-directory: src/PassReset.Tests.Integration.Ldap
