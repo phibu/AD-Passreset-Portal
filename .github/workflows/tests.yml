@@ -168,10 +168,12 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     services:
-      # TODO: verify image availability periodically; alternatives include
-      # gbrenonet/samba-ad-dc or building from upstream samba/samba.
+      # nowsci/samba-domain is a drop-in replacement for the retired diginc/samba-ad-dc:
+      # identical DOMAIN/DOMAINPASS/DNSFORWARDER env vars, real AD DC mode with LDAPS on 636,
+      # auto-rebuilt monthly. Runner-up if this disappears: instantlinux/samba-dc (needs env var
+      # rename to REALM/NETBIOS_NAME and network_mode:host — more rewriting).
       samba-dc:
-        image: diginc/samba-ad-dc:latest
+        image: nowsci/samba-domain:latest
         ports:
           - 389:389
           - 636:636
@@ -179,11 +181,16 @@ jobs:
           DOMAIN: SAMDOM
           DOMAINPASS: ${{ secrets.SAMBA_DOMAIN_PASSWORD }}
           DNSFORWARDER: 8.8.8.8
+        # SYS_ADMIN + NET_ADMIN: nowsci's first-boot samba_provision needs elevated perms.
+        # health-retries bumped to 20 because nowsci's first-run provisioning takes ~30-60s
+        # (vs diginc's ~10s).
         options: >-
+          --cap-add SYS_ADMIN
+          --cap-add NET_ADMIN
           --health-cmd "pidof samba"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 10
+          --health-retries 20
     env:
       PASSRESET_INTEGRATION_LDAP: "1"
       PASSRESET_PasswordChangeOptions__ServiceAccountPassword: ${{ secrets.SAMBA_DOMAIN_PASSWORD }}
