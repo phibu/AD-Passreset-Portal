@@ -52,12 +52,12 @@ public sealed class LocalPolicyPasswordChangeProviderTests : IDisposable
     [Fact]
     public async Task LocalPwned_ShortCircuitsWithLocallyKnownPwnedError()
     {
-        // SHA1("hunter2!") = F3BBBD66A63D4BF1747940578EC3D0103530E21D (40 hex uppercase)
-        // prefix 5 = "F3BBB", suffix = "D66A63D4BF1747940578EC3D0103530E21D"
+        // SHA1("hunter2!") = 97716E46EA8B045B52147CC9C2D32566055C7660 (40 hex uppercase)
+        // prefix 5 = "97716", suffix = "E46EA8B045B52147CC9C2D32566055C7660"
         var corpus = Path.Combine(_tempDir, "corpus");
         Directory.CreateDirectory(corpus);
-        File.WriteAllText(Path.Combine(corpus, "F3BBB.txt"),
-            "D66A63D4BF1747940578EC3D0103530E21D:99\n");
+        File.WriteAllText(Path.Combine(corpus, "97716.txt"),
+            "E46EA8B045B52147CC9C2D32566055C7660:99\n");
         var sut = BuildSut(MakeOptions(pwnedPath: corpus));
 
         var result = await sut.PerformPasswordChangeAsync("alice", "old", "hunter2!");
