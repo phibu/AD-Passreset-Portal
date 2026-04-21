@@ -8,6 +8,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **`IAdConnectivityProbe`** — narrow AD-reachability seam for the health endpoint. `DomainJoinedProbe` (Windows, in `PassReset.PasswordProvider`) + `LdapTcpProbe` (cross-platform, in `PassReset.PasswordProvider.Ldap`) implementations. Replaces the inline `PrincipalContext` / `TcpClient` logic in `HealthController`. *(web, provider, provider-ldap)*
+- **`IPrincipalContextFactory`** — Windows-only seam over `PrincipalContext` + `UserPrincipal.FindByIdentity`. `PasswordChangeProvider` now depends on the interface instead of the BCL types directly. Lays groundwork for future cross-provider contract-test parity. *(provider)*
+
+### Changed
+- **`HealthController` no longer references `System.DirectoryServices.AccountManagement`.** AD reachability is delegated to the DI-injected `IAdConnectivityProbe`. Wiring selects the right implementation by `ProviderMode`. *(web)*
+
+### Non-changes (explicit)
+- **`PassReset.Web` still uses the Phase-11 conditional TFM.** Cross-platform deployment of the web host remains blocked by NU1201: NuGet refuses to restore a plain `net10.0` project with a `ProjectReference` to a `net10.0-windows` one, even behind a `<Condition>` guard. Unblocking Linux hosting requires multi-targeting `PassReset.PasswordProvider` (out of scope for hygiene; deferred to a follow-up phase).
+- **Windows contract tests are gone, not fixed.** The Phase-11 `PasswordChangeProviderContractTests` skip shim was deleted rather than unskipped. Reason: `UserPrincipal` is sealed in the .NET 10 BCL; `IPrincipalContextFactory` cannot return mockable principals. Full parity would require widening the seam to cover the AD operation surface (`ChangePassword`, `UserCannotChangePassword`, etc. — ~15+ methods) and was judged out of scope for Phase 11 Hygiene. Windows provider retains its 139 impl-specific tests + Samba integration coverage; LDAP provider's 7 contract tests are unchanged.
+
 ---
 
 ## [2.0.0-alpha.1] — TBD (release day)
@@ -30,7 +41,7 @@ First v2.0 alpha. Introduces a cross-platform `LdapPasswordChangeProvider` backe
 - **`UserCannotChangePassword` ACE check** is deferred on the LDAP provider. AD's server-side modify rejection provides enforcement without the ACE check; the error message is less specific on Linux but behavior is correct.
 
 ### Known Limitations
-- **Linux deployment not yet supported in this alpha.** Despite the LDAP provider being cross-platform, the ASP.NET Core host (`PassReset.Web`) still depends on `System.DirectoryServices.AccountManagement` via `HealthController.cs` and will not compile on a `net10.0` (non-Windows) target. `PassReset.Web` currently uses a conditional TFM (`net10.0-windows` on Windows, `net10.0` elsewhere) but the Linux build path is deferred to a follow-up phase. **Current alpha audience: Windows operators who want to test the LDAP provider pathway before the beta.**
+- **Linux deployment remains blocked.** Alpha.1 shipped with `PassReset.Web` using a conditional TFM because `HealthController` directly referenced `PrincipalContext`. The follow-up in `[Unreleased]` removed that direct reference via the new `IAdConnectivityProbe` seam, but the Web project still cannot target plain `net10.0`: NuGet restore (NU1201) rejects a plain-`net10.0` project with a `ProjectReference` to a `net10.0-windows` one, regardless of `<ItemGroup Condition>` guards. Unblocking requires multi-targeting `PassReset.PasswordProvider`. **Current alpha audience: Windows operators who want to test the LDAP provider pathway before the beta.**
 
 ### Breaking
 - None for Windows upgraders running with default config. (Schema adds `ProviderMode` with default `Auto`; Windows stays on Windows provider.)
