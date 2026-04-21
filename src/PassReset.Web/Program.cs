@@ -140,6 +140,9 @@ try
             passwordChangeOptions.PortalLockoutThreshold);
 
     // Phase 11: ProviderMode-based selection (Auto | Windows | Ldap).
+    // Note: ProviderMode is captured at startup from a configuration snapshot; changing it
+    // requires an app restart. DI registrations are resolved once and will not respond to
+    // IOptionsMonitor reloads of PasswordChangeOptions.
     var effectiveProvider = passwordChangeOptions.ProviderMode switch
     {
         ProviderMode.Windows => WiringTarget.Windows,
@@ -167,6 +170,15 @@ try
         builder.Services.AddSingleton<Func<ILdapSession>>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<PasswordChangeOptions>>().Value;
+            // Belt-and-suspenders: PasswordChangeOptionsValidator already enforces non-empty
+            // LdapHostnames when ProviderMode resolves to Ldap at startup. This defensive
+            // check surfaces a clear, actionable error if the options are ever reloaded
+            // into an invalid state before the factory fires.
+            if (opts.LdapHostnames is null || opts.LdapHostnames.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    "PasswordChangeOptions.LdapHostnames must contain at least one hostname when ProviderMode=Ldap.");
+            }
             var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
             return () => new LdapSession(
                 hostname: opts.LdapHostnames[0],
