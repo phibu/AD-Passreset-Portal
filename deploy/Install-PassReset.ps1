@@ -435,6 +435,51 @@ function Get-HostingModeInteractive {
     }
 }
 
+function Resolve-HttpsCertificate {
+    <#
+    .SYNOPSIS
+    Resolves a cert in Service mode: either a thumbprint in LocalMachine\My or a PFX file path.
+    Returns $null if neither is usable.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()] [string] $Thumbprint,
+        [Parameter()] [string] $PfxPath,
+        [Parameter()] [securestring] $PfxPassword
+    )
+
+    if ($Thumbprint) {
+        $cert = Get-ChildItem -Path "Cert:\LocalMachine\My" |
+            Where-Object Thumbprint -eq ($Thumbprint -replace '\s','').ToUpperInvariant() |
+            Select-Object -First 1
+        if (-not $cert) {
+            Write-Warning "Certificate with thumbprint '$Thumbprint' not found in Cert:\LocalMachine\My."
+            return $null
+        }
+        if ($cert.NotAfter -lt (Get-Date)) {
+            Write-Warning "Certificate '$($cert.Subject)' expired on $($cert.NotAfter)."
+            return $null
+        }
+        return $cert
+    }
+
+    if ($PfxPath) {
+        if (-not (Test-Path $PfxPath)) {
+            Write-Warning "PFX file '$PfxPath' does not exist."
+            return $null
+        }
+        try {
+            $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($PfxPath, $PfxPassword)
+            return $cert
+        } catch {
+            Write-Warning "Could not open PFX at '$PfxPath': $_"
+            return $null
+        }
+    }
+
+    return $null
+}
+
 # Pester test mode: dot-source the script to import functions without executing the install flow.
 if ($env:PASSRESET_TEST_MODE -eq '1') {
     return
