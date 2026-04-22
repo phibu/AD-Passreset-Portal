@@ -74,16 +74,26 @@ $siteExists = Test-Path "IIS:\Sites\$SiteName"
 $poolExists = Test-Path "IIS:\AppPools\$AppPoolName"
 $pathExists = Test-Path $PhysicalPath
 
+# Windows Service hosting mode (Phase 14): the installer may have registered a
+# service with the same name as the site (default: 'PassReset') instead of an IIS site.
+$svc        = Get-Service -Name $SiteName -ErrorAction SilentlyContinue
+$svcExists  = $null -ne $svc
+
+if ($svcExists -and $siteExists) {
+    Write-Warn "Both a Windows Service and an IIS site named '$SiteName' exist. Removing both."
+}
+
 # Find backup folders created by the upgrade path of Install-PassReset.ps1
 $backupFolders = @(Get-Item "${PhysicalPath}_backup_*" -ErrorAction SilentlyContinue)
 
 # --- Nothing to do? -----------------------------------------------------------
 
-if (-not $siteExists -and -not $poolExists -and -not $pathExists) {
+if (-not $siteExists -and -not $poolExists -and -not $pathExists -and -not $svcExists) {
     Write-Warn "Nothing found to remove:"
-    Write-Warn "  Site  '$SiteName'    : not present in IIS"
-    Write-Warn "  Pool  '$AppPoolName' : not present in IIS"
-    Write-Warn "  Path  '$PhysicalPath': does not exist"
+    Write-Warn "  Service '$SiteName'    : not installed"
+    Write-Warn "  Site    '$SiteName'    : not present in IIS"
+    Write-Warn "  Pool    '$AppPoolName' : not present in IIS"
+    Write-Warn "  Path    '$PhysicalPath': does not exist"
     exit 0
 }
 
@@ -91,6 +101,7 @@ if (-not $siteExists -and -not $poolExists -and -not $pathExists) {
 
 Write-Host ''
 Write-Host '  The following will be removed:' -ForegroundColor Yellow
+if ($svcExists)   { Write-Host "    Windows service : $SiteName"     -ForegroundColor Yellow }
 if ($siteExists)  { Write-Host "    IIS site        : $SiteName"     -ForegroundColor Yellow }
 if ($poolExists)  { Write-Host "    IIS app pool    : $AppPoolName"  -ForegroundColor Yellow }
 if ($pathExists -and -not $KeepFiles) {
@@ -116,7 +127,23 @@ if (-not $Force) {
     }
 }
 
-# --- 1. Stop and remove IIS site ----------------------------------------------
+# --- 1. Stop and remove Windows service (Phase 14 hosting mode) ---------------
+
+Write-Step "Removing Windows service: $SiteName"
+
+if ($svcExists) {
+    if ($svc.Status -eq 'Running') {
+        Stop-Service -Name $SiteName -Force
+        Write-Ok "Stopped service $SiteName"
+    }
+    sc.exe delete $SiteName | Out-Null
+    Start-Sleep -Seconds 2
+    Write-Ok "Removed service $SiteName"
+} else {
+    Write-Warn "Windows service '$SiteName' not found — skipping"
+}
+
+# --- 2. Stop and remove IIS site ----------------------------------------------
 
 Write-Step "Removing IIS site: $SiteName"
 
@@ -132,7 +159,7 @@ if ($siteExists) {
     Write-Warn "IIS site '$SiteName' not found — skipping"
 }
 
-# --- 2. Stop and remove app pool ----------------------------------------------
+# --- 3. Stop and remove app pool ----------------------------------------------
 
 Write-Step "Removing app pool: $AppPoolName"
 
@@ -148,7 +175,7 @@ if ($poolExists) {
     Write-Warn "App pool '$AppPoolName' not found — skipping"
 }
 
-# --- 3. Remove deployment folder ----------------------------------------------
+# --- 4. Remove deployment folder ----------------------------------------------
 
 if (-not $KeepFiles) {
     Write-Step "Removing deployment folder: $PhysicalPath"
@@ -164,7 +191,7 @@ if (-not $KeepFiles) {
     Write-Warn "Files retained at $PhysicalPath"
 }
 
-# --- 4. Remove upgrade backup folders (optional) ------------------------------
+# --- 5. Remove upgrade backup folders (optional) ------------------------------
 
 if ($RemoveBackups) {
     Write-Step 'Removing upgrade backup folders'
