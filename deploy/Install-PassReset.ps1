@@ -488,6 +488,54 @@ function Resolve-HttpsCertificate {
     return $null
 }
 
+function Initialize-WebAdministration {
+    <#
+    .SYNOPSIS
+    Best-effort load of the WebAdministration module and IIS:\ PSDrive. Sets
+    $script:WebAdministrationAvailable to indicate whether IIS management is
+    usable. Never aborts — callers that strictly require IIS management must
+    check the flag themselves (e.g. after hosting-mode resolution).
+    #>
+    [CmdletBinding()]
+    param()
+
+    $script:WebAdministrationAvailable = $false
+
+    try {
+        # WebAdministration is a legacy PSSnapIn-based module that only exists in
+        # Windows PowerShell (Desktop edition). PS 7 can't load it natively
+        # (PSSnapIn types were removed from PS Core) — importing always goes
+        # through the WinPSCompat remoting session. Silence the noisy
+        # deserialization warning emitted on import.
+        Import-Module WebAdministration -WarningAction SilentlyContinue -ErrorAction Stop
+    } catch {
+        $script:WebAdministrationLoadError = $_.Exception.Message
+        return
+    }
+
+    # Importing WebAdministration via the WinPSCompat session registers the IIS:\
+    # PSDrive INSIDE the compat session, not in our local PS 7 session. Downstream
+    # Set-ItemProperty "IIS:\AppPools\..." calls then fail with the notorious
+    # 'Cannot find drive. A drive with the name "IIS" does not exist' error.
+    # Use the modern IISAdministration module (ships with IIS 8.5+, PS Core-native)
+    # for drive-less operations, OR register the IIS:\ drive manually using the
+    # WebAdministration provider surfaced through the compat session.
+    #
+    # Explicit drive registration is the minimal change — preserves all existing
+    # Set-ItemProperty "IIS:\..." call sites below.
+    if (-not (Get-PSDrive -Name 'IIS' -ErrorAction SilentlyContinue)) {
+        try {
+            New-PSDrive -Name 'IIS' -PSProvider WebAdministration -Root 'MACHINE/WEBROOT/APPHOST' `
+                -Scope Script -ErrorAction Stop | Out-Null
+        } catch {
+            $script:WebAdministrationLoadError = $_.Exception.Message
+            return
+        }
+    }
+
+    $script:WebAdministrationAvailable = $true
+}
+
 function Test-PortFree {
     [CmdletBinding()]
     param(
@@ -499,7 +547,8 @@ function Test-PortFree {
     if (-not $conn) { return $true }
 
     # Hook point for IIS-site-owned bindings during migration.
-    if ($OwnedByIisSite) {
+    # Without WebAdministration loaded we can't tell if an IIS site owns this port. Fall through to process-owner detection — safer than assuming the port is free.
+    if ($OwnedByIisSite -and $script:WebAdministrationAvailable) {
         $iisBinding = Get-Website -Name $OwnedByIisSite -ErrorAction SilentlyContinue
         if ($iisBinding -and ($iisBinding.Bindings.Collection.bindingInformation -match ":${Port}:")) {
             Write-Verbose "Port $Port is bound by IIS site '$OwnedByIisSite' — will be freed at teardown."
@@ -600,13 +649,39 @@ if ($env:PASSRESET_TEST_MODE -eq '1') {
     return
 }
 
+# Load WebAdministration early — both hosting-mode resolution (Get-Website) and
+# Test-PortFree depend on it. Best-effort at this stage: we don't yet know
+# whether the operator wants IIS mode. Strict IIS requirement is re-checked
+# after $HostingMode is resolved below.
+Initialize-WebAdministration
+if (-not $script:WebAdministrationAvailable) {
+    Write-Warn "WebAdministration module not loaded — IIS-related checks (existing site detection, IIS-owned port bindings) will be skipped."
+}
+
 # ─── Resolve hosting mode (prompt on fresh install, default on upgrade) ────
 if (-not $HostingMode) {
-    $existingSite = Get-Website -Name 'PassReset' -ErrorAction SilentlyContinue
+    $existingSite = if ($script:WebAdministrationAvailable) {
+        Get-Website -Name 'PassReset' -ErrorAction SilentlyContinue
+    } else { $null }
     $default = if ($existingSite) { 'IIS' } else { $null }
     $HostingMode = Get-HostingModeInteractive -Default $default
 }
 Write-Host "Hosting mode: $HostingMode" -ForegroundColor Cyan
+
+if ($HostingMode -eq 'IIS' -and -not $script:WebAdministrationAvailable) {
+    Abort @"
+IIS hosting mode was selected, but the WebAdministration PowerShell module
+could not be loaded (or the IIS:\ PSDrive is not available). This installer
+cannot configure AppPools or Sites without it.
+
+Cause: IIS Management Scripts and Tools role is not installed on this host.
+
+Fix: run as Administrator and enable the feature, then re-run this installer:
+  dism.exe /online /enable-feature /featurename:IIS-ManagementScriptingTools /all
+
+Underlying error: $($script:WebAdministrationLoadError)
+"@
+}
 
 if ($HostingMode -eq 'Service') {
     if ($CertThumbprint -and $PfxPath) {
@@ -765,69 +840,8 @@ if (-not (Test-Path $brandPath)) {
 }
 
 # Stop the site/pool before copying so locked files are released.
-# Fail loudly if the WebAdministration module can't load — otherwise downstream
-# uses of the IIS:\ drive fault with a cryptic "drive not found" error (the
-# exception formatter renders the missing drive name as "ISS", which looks like
-# a typo but is actually Windows truncation of the word "IIS:" in its display).
-try {
-    # WebAdministration is a legacy PSSnapIn-based module that only exists in
-    # Windows PowerShell (Desktop edition). PS 7 can't load it natively
-    # (PSSnapIn types were removed from PS Core) — importing always goes
-    # through the WinPSCompat remoting session. Silence the noisy
-    # deserialization warning emitted on import.
-    Import-Module WebAdministration -WarningAction SilentlyContinue -ErrorAction Stop
-} catch {
-    Abort @"
-Failed to load the WebAdministration PowerShell module — the IIS:\ drive
-won't be available so this installer cannot configure AppPools or Sites.
-
-Cause: IIS Management Scripts and Tools role is not installed on this host.
-
-Fix: run as Administrator and enable the feature, then re-run this installer:
-  dism.exe /online /enable-feature /featurename:IIS-ManagementScriptingTools /all
-
-Underlying error: $($_.Exception.Message)
-"@
-}
-
-# Importing WebAdministration via the WinPSCompat session registers the IIS:\
-# PSDrive INSIDE the compat session, not in our local PS 7 session. Downstream
-# Set-ItemProperty "IIS:\AppPools\..." calls then fail with the notorious
-# 'Cannot find drive. A drive with the name "IIS" does not exist' error.
-# Use the modern IISAdministration module (ships with IIS 8.5+, PS Core-native)
-# for drive-less operations, OR register the IIS:\ drive manually using the
-# WebAdministration provider surfaced through the compat session.
-#
-# Explicit drive registration is the minimal change — preserves all existing
-# Set-ItemProperty "IIS:\..." call sites below.
-if (-not (Get-PSDrive -Name 'IIS' -ErrorAction SilentlyContinue)) {
-    try {
-        New-PSDrive -Name 'IIS' -PSProvider WebAdministration -Root 'MACHINE/WEBROOT/APPHOST' `
-            -Scope Script -ErrorAction Stop | Out-Null
-    } catch {
-        Abort @"
-The WebAdministration module loaded, but the IIS:\ PSDrive is not available
-in this PowerShell session — so downstream Set-ItemProperty "IIS:\..." calls
-will fail with 'Cannot find drive'.
-
-This happens on PS 7 because WebAdministration loads through the WinPSCompat
-remoting session, which registers the IIS:\ drive inside the compat process,
-not locally. The automatic fallback (New-PSDrive with the WebAdministration
-provider) also failed.
-
-Underlying error: $($_.Exception.Message)
-
-This installer requires PowerShell 7. To help us diagnose and fix the
-compat-session issue on your host, run the read-only diagnostic probe
-and attach the output to an issue:
-
-  pwsh -NoProfile -File .\Test-PS7Iis.ps1
-  # Then file at https://github.com/phibu/AD-Passreset-Portal/issues
-  # with your PSVersionTable, OS build, and the probe output.
-"@
-    }
-}
-
+# WebAdministration + IIS:\ PSDrive are loaded earlier by Initialize-WebAdministration;
+# reaching this point in IIS mode already guarantees $script:WebAdministrationAvailable.
 $poolExists = Test-Path "IIS:\AppPools\$AppPoolName"
 $siteExists = Test-Path "IIS:\Sites\$SiteName"
 
