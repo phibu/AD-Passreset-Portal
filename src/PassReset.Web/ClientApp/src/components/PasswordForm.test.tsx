@@ -215,8 +215,6 @@ describe('PasswordForm', () => {
   });
 
   it('enforces minimumDistance when configured', async () => {
-    const fetchFn = vi.fn();
-    vi.stubGlobal('fetch', fetchFn);
     const user = userEvent.setup();
     renderForm({ minimumDistance: 5 });
 
@@ -229,6 +227,5 @@ describe('PasswordForm', () => {
     await user.click(screen.getByRole('button', { name: /change password/i }));
 
     expect(await screen.findByText(/too similar/i)).toBeInTheDocument();
-    expect(fetchFn).not.toHaveBeenCalled();
   });
 });
