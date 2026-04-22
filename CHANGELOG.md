@@ -12,6 +12,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.0-alpha.3] — 2026-04-22
+
+Second installer hardening pass after a systematic audit of `Install-PassReset.ps1` surfaced five more Severity-1 issues. No application code changes.
+
+### Fixed
+
+- **IIS prerequisite checks (`W3SVC`, `Get-WindowsFeature`) now gated on `-HostingMode IIS`.** Previously ran unconditionally — Service- and Console-mode installs on non-IIS hosts aborted immediately, and `Get-WindowsFeature` itself throws on workstation-class hosts without Server-Manager RSAT. *(installer)*
+- **Top-level `Test-Path "IIS:\..."` calls short-circuited on `$script:WebAdministrationAvailable`.** Strict mode previously threw `Cannot find drive 'IIS'` on non-IIS hosts before the hosting-mode branch was reached. *(installer)*
+- **`sc.exe delete` exit code now checked in `Install-AsWindowsService`.** Non-zero exits (notably 1072 "marked for deletion" when a stale handle is open) now abort with a guided message telling the operator to close Services.msc / Event Viewer or reboot, instead of silently failing the subsequent `New-Service`. *(installer)*
+- **`<install-dir>/keys` ACL is no longer blank-slate overwritten on every upgrade.** Previously `Set-Acl` was called unconditionally with a fresh `DirectorySecurity` that stripped all existing ACEs. If the app-pool identity had changed between installer runs, the Data Protection key ring became unreadable and all stored admin-UI secrets were lost. Now the ACL is applied only on fresh directory creation; upgrades detect identity drift and emit an `icacls` remediation hint rather than rewriting. *(installer, security)*
+- **`$keysPath` initialized before mode branches** — the Done-summary line previously referenced an uninitialized variable in Service/Console modes, tripping `Set-StrictMode`. *(installer)*
+
+---
+
 ## [2.0.0-alpha.2] — 2026-04-22
 
 Installer hotfix for v2.0.0-alpha.1.
