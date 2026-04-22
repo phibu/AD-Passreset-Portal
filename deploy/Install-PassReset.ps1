@@ -100,7 +100,15 @@ param(
     [switch] $SkipHealthCheck = $false,
 
     [ValidateSet('IIS','Service','Console')]
-    [string] $HostingMode
+    [string] $HostingMode,
+
+    # Service mode: identity
+    [string] $ServiceAccount = 'NT SERVICE\PassReset',
+    [securestring] $ServicePassword,
+
+    # Service mode: cert alternative to -CertThumbprint (mutually exclusive)
+    [string] $PfxPath,
+    [securestring] $PfxPassword
 )
 
 Set-StrictMode -Version Latest
@@ -599,6 +607,15 @@ if (-not $HostingMode) {
     $HostingMode = Get-HostingModeInteractive -Default $default
 }
 Write-Host "Hosting mode: $HostingMode" -ForegroundColor Cyan
+
+if ($HostingMode -eq 'Service') {
+    if ($CertThumbprint -and $PfxPath) {
+        throw "Specify either -CertThumbprint or -PfxPath, not both."
+    }
+    if (-not $CertThumbprint -and -not $PfxPath) {
+        throw "Service mode requires -CertThumbprint or -PfxPath."
+    }
+}
 
 # ─── 1. Prerequisites ─────────────────────────────────────────────────────────
 
