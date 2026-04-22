@@ -1,0 +1,25 @@
+@page
+@model LocalPolicyModel
+@{ ViewData["Title"] = "Local Policy"; }
+<h1 class="mb-4">Local password policy</h1>
+
+<form method="post">
+    <div class="mb-3">
+        <label class="form-label" asp-for="Input.BannedWordsPath">Banned-words file path</label>
+        <input class="form-control" asp-for="Input.BannedWordsPath" placeholder="Leave blank to disable" />
+        <span asp-validation-for="Input.BannedWordsPath" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" asp-for="Input.LocalPwnedPasswordsPath">Local HIBP corpus directory</label>
+        <input class="form-control" asp-for="Input.LocalPwnedPasswordsPath" placeholder="Leave blank to use remote HIBP" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" asp-for="Input.MinBannedTermLength">Minimum banned term length</label>
+        <input class="form-control" type="number" asp-for="Input.MinBannedTermLength" />
+        <span asp-validation-for="Input.MinBannedTermLength" class="text-danger"></span>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+</form>

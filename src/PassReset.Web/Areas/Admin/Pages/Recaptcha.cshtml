@@ -1,0 +1,23 @@
+@page
+@model RecaptchaModel
+@{ ViewData["Title"] = "reCAPTCHA"; }
+<h1 class="mb-4">reCAPTCHA</h1>
+
+<form method="post">
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" asp-for="Input.Enabled" />
+        <label class="form-check-label" asp-for="Input.Enabled">Enable reCAPTCHA</label>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" asp-for="Input.SiteKey">Site key (public)</label>
+        <input class="form-control" asp-for="Input.SiteKey" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" asp-for="Input.NewPrivateKey">Private key</label>
+        <input class="form-control" type="password" asp-for="Input.NewPrivateKey" placeholder="••••••• (leave blank to keep current)" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+</form>

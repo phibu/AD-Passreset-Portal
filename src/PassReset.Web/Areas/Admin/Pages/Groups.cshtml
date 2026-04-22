@@ -1,0 +1,18 @@
+@page
+@model GroupsModel
+@{ ViewData["Title"] = "Groups"; }
+<h1 class="mb-4">AD group membership filters</h1>
+
+<form method="post">
+    <div class="mb-3">
+        <label class="form-label" asp-for="Input.AllowedAdGroupsMultiline">Allowed AD groups (one DN per line)</label>
+        <textarea class="form-control" rows="6" asp-for="Input.AllowedAdGroupsMultiline"></textarea>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" asp-for="Input.RestrictedAdGroupsMultiline">Restricted AD groups (one DN per line)</label>
+        <textarea class="form-control" rows="6" asp-for="Input.RestrictedAdGroupsMultiline"></textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+</form>

@@ -1,0 +1,33 @@
+@page
+@model SiemModel
+@{ ViewData["Title"] = "SIEM"; }
+<h1 class="mb-4">SIEM syslog</h1>
+
+<form method="post">
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" asp-for="Input.Enabled" />
+        <label class="form-check-label" asp-for="Input.Enabled">Enable syslog forwarding</label>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" asp-for="Input.Host">Host</label>
+        <input class="form-control" asp-for="Input.Host" />
+    </div>
+
+    <div class="row">
+        <div class="col-md-3 mb-3">
+            <label class="form-label" asp-for="Input.Port">Port</label>
+            <input class="form-control" type="number" asp-for="Input.Port" />
+            <span asp-validation-for="Input.Port" class="text-danger"></span>
+        </div>
+        <div class="col-md-3 mb-3">
+            <label class="form-label" asp-for="Input.Protocol">Protocol</label>
+            <select asp-for="Input.Protocol" class="form-select">
+                <option value="Udp">UDP</option>
+                <option value="Tcp">TCP</option>
+            </select>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+</form>
