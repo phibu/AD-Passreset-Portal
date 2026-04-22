@@ -1,0 +1,19 @@
+@page
+@model RecycleModel
+@{ ViewData["Title"] = "Recycle"; }
+<h1 class="mb-4">Recycle application pool</h1>
+
+<div class="alert alert-warning">
+    Recycling the app pool will briefly drop in-flight requests. IIS overlaps old and new workers, so downtime is usually negligible.
+</div>
+
+<form method="post">
+    <button type="submit" class="btn btn-danger">Recycle App Pool</button>
+</form>
+
+@if (!string.IsNullOrEmpty(Model.Output))
+{
+    <h2 class="mt-4">Output</h2>
+    <pre class="border p-2 bg-light">@Model.Output</pre>
+    <p class="text-muted">Exit code: @Model.ExitCode</p>
+}
