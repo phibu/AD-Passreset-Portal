@@ -12,6 +12,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.0-alpha.2] — 2026-04-22
+
+Installer hotfix for v2.0.0-alpha.1.
+
+### Fixed
+- **`Install-PassReset.ps1` aborted with `Get-Website is not recognized as a name of a cmdlet`** on PS 7 hosts where the `WebAdministration` module wasn't pre-loaded. Phase 14's new hosting-mode resolution called `Get-Website` *before* the existing `Import-Module WebAdministration` guard block. Extracted the module-load + `IIS:\` PSDrive registration into a new `Initialize-WebAdministration` function and call it immediately after the `PASSRESET_TEST_MODE` short-circuit — before any `Get-Website` call. IIS-mode still aborts fatally if the module can't load (same error text as before); Service/Console modes now tolerate the module being missing and fall through to non-IIS code paths. *(installer)*
+
+---
+
 ## [2.0.0-alpha.1] — 2026-04-22
 
 First v2.0 alpha. Bundles four phases of work on top of v1.4.2: cross-platform LDAP provider (phase 11), local offline password policy (phase 12), loopback admin UI with encrypted secret storage (phase 13), and pluggable Windows hosting modes — IIS, Windows Service, or Console (phase 14). **Existing IIS deployments upgrade with no config changes**; all new features are opt-in.
