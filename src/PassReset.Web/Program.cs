@@ -446,6 +446,40 @@ try
         });
     }
 
+    // ── Phase 14: Service-mode TLS binding ───────────────────────────────────────
+    // IIS mode: the ASP.NET Core Module feeds the request via the named-pipe backend,
+    // so we don't bind a listener here. Console mode: the operator passes --urls on
+    // the command line (or leaves the default). Service mode: bind HTTPS 443 with
+    // the configured cert.
+    if (hostingMode == HostingMode.Service)
+    {
+        builder.WebHost.ConfigureKestrel(opts =>
+        {
+            if (!string.IsNullOrWhiteSpace(kestrelHttpsCert.Thumbprint))
+            {
+                var storeLocation = Enum.Parse<System.Security.Cryptography.X509Certificates.StoreLocation>(
+                    kestrelHttpsCert.StoreLocation, ignoreCase: true);
+                using var store = new System.Security.Cryptography.X509Certificates.X509Store(
+                    kestrelHttpsCert.StoreName, storeLocation);
+                store.Open(System.Security.Cryptography.X509Certificates.OpenFlags.ReadOnly);
+                var cert = store.Certificates
+                    .Find(System.Security.Cryptography.X509Certificates.X509FindType.FindByThumbprint,
+                          kestrelHttpsCert.Thumbprint, validOnly: false)
+                    .OfType<System.Security.Cryptography.X509Certificates.X509Certificate2>()
+                    .FirstOrDefault()
+                    ?? throw new InvalidOperationException(
+                        $"Kestrel:HttpsCert.Thumbprint '{kestrelHttpsCert.Thumbprint}' not found in {kestrelHttpsCert.StoreLocation}/{kestrelHttpsCert.StoreName}.");
+
+                opts.Listen(IPAddress.Any, 443, listen => listen.UseHttps(cert));
+            }
+            else if (!string.IsNullOrWhiteSpace(kestrelHttpsCert.PfxPath))
+            {
+                opts.Listen(IPAddress.Any, 443, listen =>
+                    listen.UseHttps(kestrelHttpsCert.PfxPath!, kestrelHttpsCert.PfxPassword));
+            }
+        });
+    }
+
     // ─── Build app ────────────────────────────────────────────────────────────────
     var app = builder.Build();
 
