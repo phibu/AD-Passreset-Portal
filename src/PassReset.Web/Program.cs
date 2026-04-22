@@ -42,6 +42,16 @@ try
             .Enrich.FromLogContext(),
         preserveStaticLogger: true);
 
+    // ── Phase 14: Windows Service support ────────────────────────────────────────
+    // When the process is launched by SCM, bind to the Windows Service lifetime so
+    // Start/Stop/Restart flow through SCM. When launched from console (IIS or dev),
+    // this is a no-op: WindowsServiceHelpers.IsWindowsService() returns false and
+    // the host uses the default console lifetime.
+    builder.Host.UseWindowsService(options =>
+    {
+        options.ServiceName = "PassReset";
+    });
+
     // ── Phase 14: Hosting mode detection (used by KestrelHttpsCertOptionsValidator) ─
     var hostingModeDetector = new HostingModeDetector();
     var hostingMode = hostingModeDetector.Detect();
@@ -438,6 +448,12 @@ try
 
     // ─── Build app ────────────────────────────────────────────────────────────────
     var app = builder.Build();
+
+    Log.Information(
+        "PassReset starting. HostingMode: {HostingMode}. Process: {Process}. Endpoint: {Urls}.",
+        hostingMode,
+        System.Diagnostics.Process.GetCurrentProcess().ProcessName,
+        string.Join(", ", app.Urls.DefaultIfEmpty("(not yet bound)")));
 
     // ─── Request logging — one structured line per HTTP request ───────────────────
     app.UseSerilogRequestLogging();
