@@ -18,11 +18,24 @@ Versions follow [Semantic Versioning](https://semver.org/).
   - Local HIBP SHA-1 corpus: air-gapped alternative to the remote HIBP API
   When `LocalPwnedPasswordsPath` is configured, remote HIBP API calls are disabled
   automatically. See `docs/LocalPasswordPolicy-Setup.md` for operator setup.
+- **Admin UI + encrypted config storage** ([V2-003]): loopback-only admin website at
+  `/admin` for editing operator-owned configuration. Bound to `127.0.0.1:<LoopbackPort>`
+  via a dedicated Kestrel listener — socket-level enforcement, not reachable over the
+  public HTTPS binding. Secrets are encrypted on disk via ASP.NET Core Data Protection
+  (`secrets.dat`); non-secrets remain in plaintext `appsettings.Production.json`.
+  Environment-variable overrides (STAB-017) continue to take precedence.
+  See `docs/Admin-UI.md`. *(web, installer, docs)*
 
 ### Configuration
 - `PasswordChangeOptions.LocalPolicy.BannedWordsPath` (optional, null default) — path to banned-words file
 - `PasswordChangeOptions.LocalPolicy.LocalPwnedPasswordsPath` (optional, null default) — path to HIBP corpus directory
 - `PasswordChangeOptions.LocalPolicy.MinBannedTermLength` (default: 4) — minimum banned-term length
+- `AdminSettings.Enabled` (default: `false`, opt-in) — master feature flag for the admin UI
+- `AdminSettings.LoopbackPort` (default: `5010`) — 127.0.0.1 listener port
+- `AdminSettings.KeyStorePath` (default: `<install-dir>/keys`) — Data Protection key ring directory
+- `AdminSettings.DataProtectionCertThumbprint` (Linux only) — required cert thumbprint on non-Windows
+- `AdminSettings.AppSettingsFilePath` (default: next to the main appsettings file)
+- `AdminSettings.SecretsFilePath` (default: `<install-dir>/secrets.dat`)
 
 ### API
 - New `ApiErrorCode` values: `BannedWord` (20), `LocallyKnownPwned` (21). Frontend messages
@@ -31,6 +44,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - **`HealthController` no longer references `System.DirectoryServices.AccountManagement`.** AD reachability is delegated to the DI-injected `IAdConnectivityProbe`. Wiring selects the right implementation by `ProviderMode`. *(web)*
+
+### Security
+- New socket-level loopback binding for the admin UI — admin endpoints are
+  unreachable from the public listener.
+- Data Protection purpose isolation (`PassReset.Configuration.v1`) prevents
+  cross-use of secret ciphertext with other DP consumers (antiforgery, etc.).
+- Antiforgery tokens required on all admin POSTs.
+- Installer creates `<install-dir>/keys` with a restrictive NTFS ACL (app pool:
+  Modify; Administrators: FullControl; inheritance disabled).
 
 ### Non-changes (explicit)
 - **`PassReset.Web` still uses the Phase-11 conditional TFM.** Cross-platform deployment of the web host remains blocked by NU1201: NuGet refuses to restore a plain `net10.0` project with a `ProjectReference` to a `net10.0-windows` one, even behind a `<Condition>` guard. Unblocking Linux hosting requires multi-targeting `PassReset.PasswordProvider` (out of scope for hygiene; deferred to a follow-up phase).
