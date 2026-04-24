@@ -799,7 +799,8 @@ Write-Ok ".NET Hosting Bundle $installedRuntime detected"
 Write-Step 'Ensuring Windows Event Log source PassReset is registered'
 try {
     if (-not [System.Diagnostics.EventLog]::SourceExists('PassReset')) {
-        New-EventLog -LogName Application -Source PassReset -ErrorAction Stop
+        # PS 7 dropped New-EventLog — use the .NET API directly. Requires admin (script declares #Requires -RunAsAdministrator).
+        [System.Diagnostics.EventLog]::CreateEventSource('PassReset', 'Application')
         Write-Ok "Registered Event Log source 'PassReset' under 'Application' log"
     } else {
         Write-Ok "Event Log source 'PassReset' already registered"
@@ -1054,15 +1055,21 @@ $existingIdentityType = $null
 $existingIdentity     = $null
 if ($poolExists) {
     try {
-        # IISAdministration: property access on the Microsoft.Web.Administration.ApplicationPool
-        # object returned by Get-IISAppPool. IdentityType is a strongly-typed enum — we compare
-        # via string form ('SpecificUser'). The earlier WebAdministration 'IIS:\' PSDrive read
-        # pattern (Get-WebConfigurationProperty -PSPath 'IIS:\') does not work in PS 7 because
-        # the IIS:\ drive lives in the WinPSCompat session and is not auto-proxied.
-        $pool = Get-IISAppPool -Name $AppPoolName -ErrorAction Stop
-        $existingIdentityType = [string]$pool.ProcessModel.IdentityType
+        # IISAdministration config-API read. We used to dereference $pool.ProcessModel.IdentityType
+        # directly on the Microsoft.Web.Administration.ApplicationPool object returned by
+        # Get-IISAppPool, but on PS 7 that object is routed through the WinPSCompat remoting
+        # session on some Windows builds — the deserialized proxy loses the typed ProcessModel
+        # graph and the property read fails with "IdentityType cannot be found on this object".
+        # Get-IISConfigAttributeValue traverses applicationHost.config via primitive strings, so
+        # it works identically on PS 5.1 and PS 7. Returned identityType is the string enum name
+        # ('ApplicationPoolIdentity', 'SpecificUser', 'LocalSystem', ...), not the numeric code.
+        $poolElement = Get-IISConfigSection -SectionPath 'system.applicationHost/applicationPools' |
+            Get-IISConfigCollection |
+            Get-IISConfigCollectionElement -ConfigAttribute @{ name = $AppPoolName }
+        $processModelRead = $poolElement | Get-IISConfigElement -ChildElementName 'processModel'
+        $existingIdentityType = [string](Get-IISConfigAttributeValue -ConfigElement $processModelRead -AttributeName 'identityType')
         if ($existingIdentityType -eq 'SpecificUser') {
-            $existingIdentity = $pool.ProcessModel.UserName
+            $existingIdentity = [string](Get-IISConfigAttributeValue -ConfigElement $processModelRead -AttributeName 'userName')
         }
     } catch {
         Write-Warning "Could not read existing AppPool identity: $($_.Exception.Message). Will fall through to default handling."
@@ -1074,20 +1081,29 @@ if (-not $poolExists) {
     Write-Ok "Created app pool $AppPoolName"
 }
 
-# IISAdministration uses an explicit commit model — property changes on Get-IISAppPool
-# do NOT auto-persist. Wrap all app-pool edits in Start-IISCommitDelay /
-# Stop-IISCommitDelay -Commit so the whole group is applied atomically (matches how
-# the IIS Manager GUI applies changes). The try/finally ensures Stop-IISCommitDelay
-# runs even if a setter throws — otherwise the commit delay leaks.
+# IISAdministration uses an explicit commit model — configuration writes are batched
+# between Start-IISCommitDelay and Stop-IISCommitDelay -Commit $true so the whole
+# group is applied atomically (matches how the IIS Manager GUI applies changes). The
+# try/finally ensures the delay is always resolved — otherwise it leaks. Note: we
+# use Set-IISConfigAttributeValue instead of native $pool.Property = 'x' assignments
+# because on PS 7 the Microsoft.Web.Administration.ApplicationPool object returned
+# by Get-IISAppPool can be a deserialized WinPSCompat proxy; assignments to proxy
+# NoteProperties do not round-trip back to applicationHost.config and silently no-op.
+# Stop-IISCommitDelay -Commit takes a [Boolean], not a [switch] — the bare -Commit
+# form fails with "Missing argument for parameter 'Commit'".
 Start-IISCommitDelay
 try {
-    $pool = Get-IISAppPool -Name $AppPoolName
+    $poolElement = Get-IISConfigSection -SectionPath 'system.applicationHost/applicationPools' |
+        Get-IISConfigCollection |
+        Get-IISConfigCollectionElement -ConfigAttribute @{ name = $AppPoolName }
 
-    # No managed code — ASP.NET Core runs in-process via the hosting module
-    $pool.ManagedRuntimeVersion = ''
-    $pool.Enable32BitAppOnWin64 = $false
-    $pool.StartMode             = 'AlwaysRunning'
-    $pool.AutoStart             = $true
+    # No managed code — ASP.NET Core runs in-process via the hosting module.
+    Set-IISConfigAttributeValue -ConfigElement $poolElement -AttributeName 'managedRuntimeVersion' -AttributeValue ''
+    Set-IISConfigAttributeValue -ConfigElement $poolElement -AttributeName 'enable32BitAppOnWin64' -AttributeValue $false
+    Set-IISConfigAttributeValue -ConfigElement $poolElement -AttributeName 'startMode'             -AttributeValue 'AlwaysRunning'
+    Set-IISConfigAttributeValue -ConfigElement $poolElement -AttributeName 'autoStart'             -AttributeValue $true
+
+    $processModel = $poolElement | Get-IISConfigElement -ChildElementName 'processModel'
 
     # BUG-003: Four-branch identity resolution.
     # NEVER read or round-trip processModel.password — it is write-only.
@@ -1099,9 +1115,9 @@ try {
         $bstr          = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($AppPoolPassword)
         $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
         [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-        $pool.ProcessModel.IdentityType = 'SpecificUser'
-        $pool.ProcessModel.UserName     = $AppPoolIdentity
-        $pool.ProcessModel.Password     = $plainPassword
+        Set-IISConfigAttributeValue -ConfigElement $processModel -AttributeName 'identityType' -AttributeValue 'SpecificUser'
+        Set-IISConfigAttributeValue -ConfigElement $processModel -AttributeName 'userName'     -AttributeValue $AppPoolIdentity
+        Set-IISConfigAttributeValue -ConfigElement $processModel -AttributeName 'password'     -AttributeValue $plainPassword
         $plainPassword = $null
         Write-Ok "App pool identity: $AppPoolIdentity (explicit override)"
     }
@@ -1115,12 +1131,12 @@ try {
     }
     else {
         # Fresh install, no override → default to ApplicationPoolIdentity.
-        $pool.ProcessModel.IdentityType = 'ApplicationPoolIdentity'
+        Set-IISConfigAttributeValue -ConfigElement $processModel -AttributeName 'identityType' -AttributeValue 'ApplicationPoolIdentity'
         Write-Ok 'App pool identity: ApplicationPoolIdentity (new pool default)'
     }
 }
 finally {
-    Stop-IISCommitDelay -Commit
+    Stop-IISCommitDelay -Commit $true
 }
 
 # ─── 5. IIS site ──────────────────────────────────────────────────────────────
@@ -1201,18 +1217,32 @@ if (-not $siteExists) {
         -Force | Out-Null
     Write-Ok "Created site $SiteName (HTTP :$selectedHttpPort placeholder)"
 } else {
-    # Upgrade path: apply physicalPath / applicationPool via IISAdministration.
-    # On the Microsoft.Web.Administration.Site object the physical path lives on the
-    # root application's root virtual directory, not as a direct top-level property.
-    # Commit-delay wrapper groups both edits atomically.
+    # Upgrade path: apply physicalPath / applicationPool via IISAdministration's config API.
+    # Avoid $site.Applications['/'].VirtualDirectories['/'].PhysicalPath — on PS 7 the
+    # Get-IISSite object can be a deserialized WinPSCompat proxy whose nested Applications
+    # collection loses its indexer, so ['/'] fails. Walking the config sections with
+    # Set-IISConfigAttributeValue works identically on PS 5.1 and PS 7.
+    # Stop-IISCommitDelay -Commit is a [Boolean] parameter, not a switch.
     Start-IISCommitDelay
     try {
-        $site = Get-IISSite -Name $SiteName
-        $site.Applications['/'].VirtualDirectories['/'].PhysicalPath = $PhysicalPath
-        $site.Applications['/'].ApplicationPoolName                  = $AppPoolName
+        $siteElement = Get-IISConfigSection -SectionPath 'system.applicationHost/sites' |
+            Get-IISConfigCollection |
+            Get-IISConfigCollectionElement -ConfigAttribute @{ name = $SiteName }
+
+        # Root application (path '/')
+        $rootApp = $siteElement |
+            Get-IISConfigCollection -CollectionName 'application' |
+            Get-IISConfigCollectionElement -ConfigAttribute @{ path = '/' }
+        Set-IISConfigAttributeValue -ConfigElement $rootApp -AttributeName 'applicationPool' -AttributeValue $AppPoolName
+
+        # Root virtual directory (path '/') inside the root application
+        $rootVdir = $rootApp |
+            Get-IISConfigCollection -CollectionName 'virtualDirectory' |
+            Get-IISConfigCollectionElement -ConfigAttribute @{ path = '/' }
+        Set-IISConfigAttributeValue -ConfigElement $rootVdir -AttributeName 'physicalPath' -AttributeValue $PhysicalPath
     }
     finally {
-        Stop-IISCommitDelay -Commit
+        Stop-IISCommitDelay -Commit $true
     }
     Write-Ok "Updated site $SiteName"
 }
