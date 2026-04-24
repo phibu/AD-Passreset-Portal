@@ -36,6 +36,14 @@
     Thumbprint of an existing certificate in LocalMachine\My to bind.
     Leave empty to skip HTTPS binding (configure manually later).
 
+.PARAMETER AllowSelfSignedCertificate
+    When no -CertThumbprint or -PfxPath is supplied, auto-generate a self-signed
+    certificate (Cert:\LocalMachine\My, CN=<COMPUTERNAME>, 2-year lifetime) and
+    use its thumbprint for the HTTPS binding. Default: $true. Pass
+    -AllowSelfSignedCertificate:$false to disable (installer will then fail-fast
+    in Service mode or skip HTTPS in IIS mode). For lab/intranet use; production
+    deployments should supply a real cert.
+
 .PARAMETER AppPoolIdentity
     Service account in DOMAIN\User format.
     Leave empty to use ApplicationPoolIdentity (built-in virtual account).
@@ -83,6 +91,7 @@ param(
     [int]    $HttpsPort       = 443,
     [int]    $HttpPort        = 80,
     [string] $CertThumbprint  = '',
+    [switch] $AllowSelfSignedCertificate = $true,
     [string]       $AppPoolIdentity = '',
     [SecureString] $AppPoolPassword = $null,
 
@@ -489,6 +498,90 @@ function Resolve-HttpsCertificate {
     return $null
 }
 
+function Get-OrCreateSelfSignedCertificate {
+    <#
+    .SYNOPSIS
+    Returns the thumbprint of the auto-generated PassReset self-signed cert,
+    reusing an existing one if present and not expired, otherwise creating fresh.
+
+    .DESCRIPTION
+    Looked up by FriendlyName = 'PassReset Self-Signed (auto-generated)' in
+    Cert:\LocalMachine\My. If a non-expired match exists, its thumbprint is
+    returned. Otherwise a new cert is created with:
+      Subject     : CN=<COMPUTERNAME>
+      DnsName     : <COMPUTERNAME>, <COMPUTERNAME>.<USERDNSDOMAIN> (if joined), localhost
+      KeyLength   : 2048
+      HashAlgorithm: SHA256
+      NotAfter    : now + 2 years
+      KeyUsage    : DigitalSignature, KeyEncipherment (defaults)
+      EKU         : Server Authentication (default)
+
+    Emits a Write-Warn banner on fresh generation.
+
+    Returns the cert thumbprint as a [string] (uppercase hex, no spaces).
+    #>
+    # TODO: remove auto-generated self-signed cert — see Uninstall-PassReset.ps1
+    [CmdletBinding()]
+    param()
+
+    $friendlyName = 'PassReset Self-Signed (auto-generated)'
+    $storePath    = 'Cert:\LocalMachine\My'
+
+    # Reuse existing, non-expired match.
+    $existing = Get-ChildItem -Path $storePath -ErrorAction SilentlyContinue |
+        Where-Object { $_.FriendlyName -eq $friendlyName -and $_.NotAfter -gt (Get-Date) } |
+        Sort-Object NotAfter -Descending |
+        Select-Object -First 1
+
+    if ($existing) {
+        Write-Ok "Reusing existing self-signed certificate: $($existing.Subject) (expires $($existing.NotAfter.ToString('yyyy-MM-dd')))"
+        return $existing.Thumbprint
+    }
+
+    # Build DNS SAN list.
+    $computerName = $env:COMPUTERNAME
+    if ([string]::IsNullOrWhiteSpace($computerName)) { $computerName = 'PassReset' }
+    $dnsNames = @($computerName, 'localhost')
+    if ($env:USERDNSDOMAIN) {
+        $dnsNames = @($computerName, "$computerName.$($env:USERDNSDOMAIN)", 'localhost')
+    }
+    $dnsNames = $dnsNames | Select-Object -Unique
+
+    $cert = New-SelfSignedCertificate `
+        -Subject             "CN=$computerName" `
+        -DnsName             $dnsNames `
+        -CertStoreLocation   $storePath `
+        -KeyAlgorithm        RSA `
+        -KeyLength           2048 `
+        -HashAlgorithm       SHA256 `
+        -NotAfter            ((Get-Date).AddYears(2)) `
+        -FriendlyName        $friendlyName `
+        -KeyExportPolicy     Exportable `
+        -ErrorAction         Stop
+
+    Write-Warn ''
+    Write-Warn '======================================================'
+    Write-Warn '  Auto-generated self-signed certificate:'
+    Write-Warn "    Subject    : $($cert.Subject)"
+    Write-Warn "    Thumbprint : $($cert.Thumbprint)"
+    Write-Warn "    SANs       : $($dnsNames -join ', ')"
+    Write-Warn "    Valid until: $($cert.NotAfter.ToString('yyyy-MM-dd'))"
+    Write-Warn ''
+    Write-Warn '  Browsers will show the site as untrusted because this cert'
+    Write-Warn '  is not signed by a trusted CA. For lab / intranet use only.'
+    Write-Warn ''
+    Write-Warn '  To trust it on this machine (dev boxes only):'
+    Write-Warn "    `$c = Get-Item 'Cert:\LocalMachine\My\$($cert.Thumbprint)'"
+    Write-Warn "    Export-Certificate -Cert `$c -FilePath `"`$env:TEMP\passreset.cer`" | Out-Null"
+    Write-Warn "    Import-Certificate -FilePath `"`$env:TEMP\passreset.cer`" -CertStoreLocation Cert:\LocalMachine\Root"
+    Write-Warn ''
+    Write-Warn '  For production, supply your own cert via -CertThumbprint or -PfxPath.'
+    Write-Warn '======================================================'
+    Write-Warn ''
+
+    return $cert.Thumbprint
+}
+
 function Initialize-IIS {
     <#
     .SYNOPSIS
@@ -695,7 +788,12 @@ if ($HostingMode -eq 'Service') {
         throw "Specify either -CertThumbprint or -PfxPath, not both."
     }
     if (-not $CertThumbprint -and -not $PfxPath) {
-        throw "Service mode requires -CertThumbprint or -PfxPath."
+        if ($AllowSelfSignedCertificate) {
+            Write-Step 'No HTTPS cert supplied; generating self-signed cert for lab/intranet use'
+            $CertThumbprint = Get-OrCreateSelfSignedCertificate
+        } else {
+            throw "Service mode requires -CertThumbprint or -PfxPath (self-signed fallback disabled by -AllowSelfSignedCertificate:`$false)."
+        }
     }
 }
 
@@ -1275,6 +1373,11 @@ if (-not $siteExists) {
 }
 
 # HTTPS binding
+if (-not $CertThumbprint -and -not $PfxPath -and $AllowSelfSignedCertificate) {
+    Write-Step 'No HTTPS cert supplied; generating self-signed cert for lab/intranet use'
+    $CertThumbprint = Get-OrCreateSelfSignedCertificate
+}
+
 if ($CertThumbprint) {
     $cert = Get-ChildItem Cert:\LocalMachine\My |
             Where-Object { $_.Thumbprint -eq $CertThumbprint } |
