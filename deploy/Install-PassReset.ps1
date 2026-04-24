@@ -1063,9 +1063,15 @@ if ($poolExists) {
         # Get-IISConfigAttributeValue traverses applicationHost.config via primitive strings, so
         # it works identically on PS 5.1 and PS 7. Returned identityType is the string enum name
         # ('ApplicationPoolIdentity', 'SpecificUser', 'LocalSystem', ...), not the numeric code.
-        $poolElement = Get-IISConfigSection -SectionPath 'system.applicationHost/applicationPools' |
-            Get-IISConfigCollection |
-            Get-IISConfigCollectionElement -ConfigAttribute @{ name = $AppPoolName }
+        # Two-step pattern required on PS 7 via WinPSCompat: ConfigurationCollection loses the
+        # [SuppressPipelineEnumeration] attribute across the session proxy boundary, so piping
+        # Get-IISConfigCollection into Get-IISConfigCollectionElement enumerates each element
+        # (a ConfigurationElement, not a ConfigurationCollection) and parameter binding fails.
+        # Per Microsoft docs (Get-IISConfigCollectionElement Example 2), assign to a local and
+        # pass via -ConfigCollection explicitly.
+        $poolSection      = Get-IISConfigSection -SectionPath 'system.applicationHost/applicationPools'
+        $poolCollection   = Get-IISConfigCollection -ConfigElement $poolSection
+        $poolElement      = Get-IISConfigCollectionElement -ConfigCollection $poolCollection -ConfigAttribute @{ name = $AppPoolName }
         $processModelRead = $poolElement | Get-IISConfigElement -ChildElementName 'processModel'
         $existingIdentityType = [string](Get-IISConfigAttributeValue -ConfigElement $processModelRead -AttributeName 'identityType')
         if ($existingIdentityType -eq 'SpecificUser') {
@@ -1093,9 +1099,10 @@ if (-not $poolExists) {
 # form fails with "Missing argument for parameter 'Commit'".
 Start-IISCommitDelay
 try {
-    $poolElement = Get-IISConfigSection -SectionPath 'system.applicationHost/applicationPools' |
-        Get-IISConfigCollection |
-        Get-IISConfigCollectionElement -ConfigAttribute @{ name = $AppPoolName }
+    # Two-step pattern required on PS 7 (see identity read block above).
+    $poolSection    = Get-IISConfigSection -SectionPath 'system.applicationHost/applicationPools'
+    $poolCollection = Get-IISConfigCollection -ConfigElement $poolSection
+    $poolElement    = Get-IISConfigCollectionElement -ConfigCollection $poolCollection -ConfigAttribute @{ name = $AppPoolName }
 
     # No managed code — ASP.NET Core runs in-process via the hosting module.
     Set-IISConfigAttributeValue -ConfigElement $poolElement -AttributeName 'managedRuntimeVersion' -AttributeValue ''
@@ -1225,20 +1232,21 @@ if (-not $siteExists) {
     # Stop-IISCommitDelay -Commit is a [Boolean] parameter, not a switch.
     Start-IISCommitDelay
     try {
-        $siteElement = Get-IISConfigSection -SectionPath 'system.applicationHost/sites' |
-            Get-IISConfigCollection |
-            Get-IISConfigCollectionElement -ConfigAttribute @{ name = $SiteName }
+        # Two-step pattern required on PS 7 via WinPSCompat: ConfigurationCollection loses the
+        # [SuppressPipelineEnumeration] attribute across the session proxy boundary. Assign the
+        # collection to a local first, then pass via -ConfigCollection (per Microsoft docs).
+        $siteSection    = Get-IISConfigSection -SectionPath 'system.applicationHost/sites'
+        $siteCollection = Get-IISConfigCollection -ConfigElement $siteSection
+        $siteElement    = Get-IISConfigCollectionElement -ConfigCollection $siteCollection -ConfigAttribute @{ name = $SiteName }
 
         # Root application (path '/')
-        $rootApp = $siteElement |
-            Get-IISConfigCollection -CollectionName 'application' |
-            Get-IISConfigCollectionElement -ConfigAttribute @{ path = '/' }
+        $appCollection = Get-IISConfigCollection -ConfigElement $siteElement -CollectionName 'application'
+        $rootApp       = Get-IISConfigCollectionElement -ConfigCollection $appCollection -ConfigAttribute @{ path = '/' }
         Set-IISConfigAttributeValue -ConfigElement $rootApp -AttributeName 'applicationPool' -AttributeValue $AppPoolName
 
         # Root virtual directory (path '/') inside the root application
-        $rootVdir = $rootApp |
-            Get-IISConfigCollection -CollectionName 'virtualDirectory' |
-            Get-IISConfigCollectionElement -ConfigAttribute @{ path = '/' }
+        $vdirCollection = Get-IISConfigCollection -ConfigElement $rootApp -CollectionName 'virtualDirectory'
+        $rootVdir       = Get-IISConfigCollectionElement -ConfigCollection $vdirCollection -ConfigAttribute @{ path = '/' }
         Set-IISConfigAttributeValue -ConfigElement $rootVdir -AttributeName 'physicalPath' -AttributeValue $PhysicalPath
     }
     finally {
