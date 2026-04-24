@@ -12,6 +12,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.0-alpha.5] — 2026-04-22
+
+Fourth installer hardening pass — fixes three real errors reported on a PS 7.6 fresh IIS install of alpha.4. No application code changes.
+
+### Fixed
+
+- **`New-EventLog` not recognized on PS 7.** The legacy `New-EventLog` cmdlet was removed from PowerShell 7. Switched to the direct .NET call `[System.Diagnostics.EventLog]::CreateEventSource('PassReset', 'Application')`. *(installer)*
+- **`$pool.ProcessModel.IdentityType` access fails on PS 7.** IISAdministration's `Get-IISAppPool` returns a `Microsoft.Web.Administration.ApplicationPool` through the WinPSCompat remoting session; the deserialized proxy loses the typed `.ProcessModel` object graph, so nested property reads throw "property not found." Migrated all read/write paths to the low-level config API (`Get-IISConfigSection` / `Get-IISConfigCollectionElement` / `Get-IISConfigAttributeValue` / `Set-IISConfigAttributeValue`), which uses string primitives and is immune to the proxy issue. *(installer)*
+- **`Stop-IISCommitDelay -Commit` missing argument.** Per [Microsoft docs](https://learn.microsoft.com/en-us/powershell/module/iisadministration/stop-iiscommitdelay), `-Commit` takes a `[Boolean]` value, not a `[switch]`. Changed every call site to `Stop-IISCommitDelay -Commit $true`. *(installer)*
+- **Same deserialization fix applied preemptively to site property writes.** The upgrade path that set `$site.Applications['/'].VirtualDirectories['/'].PhysicalPath` had the same latent bug (silently dropped assignments on a deserialized proxy). Migrated to the config API. *(installer)*
+
+---
+
 ## [2.0.0-alpha.4] — 2026-04-22
 
 Third installer hardening pass — the PowerShell 7 story is finally correct. No application code changes.
