@@ -11,7 +11,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5.2.0
@@ -58,7 +58,7 @@ jobs:
   security-audit:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5.2.0
@@ -223,7 +223,7 @@ jobs:
       PASSRESET_TEST_OLD_PASSWORD: ${{ secrets.SAMBA_TEST_OLD_PASSWORD }}
       PASSRESET_TEST_NEW_PASSWORD: ${{ secrets.SAMBA_TEST_NEW_PASSWORD }}
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5.2.0
