@@ -14,7 +14,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5.2.0
@@ -95,7 +95,7 @@ jobs:
   powershell-quality:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.0
 
       - name: Parse-check all deploy/*.ps1
         shell: pwsh
