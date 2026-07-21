@@ -18,7 +18,7 @@ jobs:
   powershell-quality:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
       - name: Parse-check all deploy/*.ps1
         shell: pwsh
         run: |
@@ -46,7 +46,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5.2.0
